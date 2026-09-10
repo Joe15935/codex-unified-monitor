@@ -2,15 +2,15 @@
 
 A local macOS menu bar app for Codex quota, token accounting, cache health, and estimated API equivalent value. One Tauri 2 application, one SQLite index, and one persistent official Codex app-server child. No Electron, Python, web server, telemetry, or cloud sync in the shipped app.
 
-**[Download the Apple Silicon release](https://github.com/Joe15935/codex-unified-monitor/releases/latest)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
+**[Download v0.2.0 with Tier Auditor (preview)](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.0)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
 
-**Auditor preview:** [v0.2.0](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.0) adds the Tier Auditor. Native startup acceptance is pending; see [TEST_REPORT.md](TEST_REPORT.md). The existing stable release remains available.
+**Auditor preview:** Native startup, the audit page and three-format evidence export passed on the acceptance Mac. The classification method still needs independent, controlled field observations; see [TEST_REPORT.md](TEST_REPORT.md). The [previous stable release](https://github.com/Joe15935/codex-unified-monitor/releases/latest) remains available.
 
 ## Install
 
 Download the `.dmg` or `.app.zip`, then place **Codex Unified Monitor.app** in `/Applications`. Requires macOS 12+ on Apple Silicon. Sign in using the official Codex CLI or ChatGPT/Codex desktop app first; this app never asks for your credentials. Open the app, then click its menu bar icon for the compact panel. Closing the dashboard keeps monitoring active. Quit from the compact panel or tray menu.
 
-Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to approve this downloaded app in Privacy & Security. Do not disable Gatekeeper globally. Source builds are also supported. Intel binaries are not provided in v0.1.0.
+Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to approve this downloaded app in Privacy & Security. Do not disable Gatekeeper globally. Source builds are also supported. Intel binaries are not provided in v0.2.0.
 
 ## What it shows
 
