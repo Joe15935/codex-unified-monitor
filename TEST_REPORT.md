@@ -95,3 +95,21 @@ Release status: preview for the observational classification method; native star
 Release ZIP SHA256: `13bfa20be4a10c115059708c291942fc27da38ca808350596d9f2350334018c4`.
 Release DMG SHA256: `cb7e220c26112bd7217d82f7e9be112d4f4b3a2c193eeb2d6c4c93d4ffb1d72c`.
 Ad-hoc signature and DMG filesystem integrity checks PASS. Packaged scan found no real logs, database, authentication files or build-user home path.
+
+## v0.2.1 bilingual acceptance
+
+Executed on 2026-09-10. Application code: `008c6f162be9de53de631b15dfab8f1a8533c899`. This release adds presentation translations and a language preference; it does not change accounting, audit classification thresholds or the database schema. No new production dependency was added.
+
+- `npm test`: 4 JavaScript localization tests and 54 Rust core tests PASS. Coverage includes persisted locale, both switch directions, placeholder parity, dictionary coverage, old preferences, invalid locale rejection, HTML escaping, unchanged JSON/CSV and audit checksums.
+- `cargo test --manifest-path src-tauri/Cargo.toml --test watcher`: 1 native integration test PASS. Both Cargo format checks PASS. `npm run build` and `npm run package -- --bundles app,dmg` PASS.
+- [GitHub Actions 34467470058](https://github.com/Joe15935/codex-unified-monitor/actions/runs/34467470058): Linux checks and macOS Apple Silicon build both SUCCESS for the code commit above. Subsequent acceptance-record edits do not change application code.
+- Actual React app in an isolated browser preview: all seven pages rendered in both languages; English restored after navigation/reload. Overview, audit and settings layouts visually checked. Preview data and adapter remain outside the repository; this check is separate from native IPC acceptance.
+- Installed native application: v0.2.1 startup with live official quota and continuing local ingestion PASS. Dashboard switching to English persisted to SQLite; graceful quit/relaunch restored English. Switching back to Chinese from the compact panel updated the main window. Both compact-panel languages and the Chinese tray menu visually checked. Other saved preference fields exactly matched the pre-upgrade backup.
+- Final native Chinese overview and audit-page screenshots PASS. The visual pass found Chinese chart-unit wrapping; the final build uses a content-sized, non-wrapping axis gutter. The final installed executable exactly matches the packaged executable.
+- Native audit export button generated English and Chinese HTML with JSON/CSV companions. Language attributes, translated headings, original assessment identifiers, 0600 permissions and canonical JSON checksums PASS. Real evidence remained INCONCLUSIVE; no baseline or controlled-use declarations were fabricated.
+- Standalone HTML visual rendering remains NOT_TESTED because the browser policy previously refused local exported-file navigation. HTML content, escaping and integrity are verified; no alternate rendering workaround was used. This does not affect the native application visual checks above.
+- Existing v0.2.0 application and schema-v3 database were backed up before replacement. Source/build scan found no private home paths, account keys, real session logs, authentication files or database in the shipped bundle.
+
+Final ZIP SHA256: `1f92b1d2dfe57a27cf6cfc57e0a6d93fa51497cc0a324396821c6d1b8418ebf8`.
+Final DMG SHA256: `16867ac42acf7db88a074b3270fe19d2fc9ffdb7812f87c4bdab8ed81094e6be`.
+Ad-hoc signature and DMG filesystem integrity PASS. Apple notarization, Intel binaries and longitudinal field validation of tier classification remain outside this release. Unknown external errors keep their original text; canonical JSON/CSV fields remain English for compatibility.
