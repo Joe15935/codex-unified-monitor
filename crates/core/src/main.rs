@@ -5,7 +5,7 @@ use codexmeter_core::{
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|x| x == "--help") {
-        println!("codexmeter-data [--codex-home PATH] [--data-dir PATH] [--no-ingest] [--snapshot] [--period today|5h|week|month|30d|90d|year|all] [--quota] [--session ID] [--audit --format json|html|csv]\nReads local rollout metadata. --quota explicitly calls read-only official account methods. Output may contain private metadata; do not commit it.");
+        println!("codexmeter-data [--codex-home PATH] [--data-dir PATH] [--no-ingest] [--snapshot] [--period today|5h|week|month|30d|90d|year|all] [--quota] [--session ID] [--audit --format json|html|csv --language en|zh-CN]\nReads local rollout metadata. --quota explicitly calls read-only official account methods. Output may contain private metadata; do not commit it.");
         return Ok(());
     }
     let arg = |key: &str| {
@@ -45,9 +45,14 @@ fn main() -> anyhow::Result<()> {
         let view =
             codexmeter_core::auditor::report(&store, &c, &settings, &q, codexmeter_core::now())?;
         let format = arg("--format").unwrap_or("json".into());
+        let language = arg("--language").unwrap_or(settings.language.clone());
+        anyhow::ensure!(
+            matches!(language.as_str(), "en" | "zh-CN"),
+            "Choose English or Simplified Chinese"
+        );
         println!(
             "{}",
-            codexmeter_core::auditor::render(&view.evidence, &format)?
+            codexmeter_core::auditor::render_localized(&view.evidence, &format, &language)?
         );
         return Ok(());
     }

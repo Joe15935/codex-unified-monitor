@@ -1,6 +1,10 @@
 # Pro Tier Auditor / 套餐额度审计
 
+**English** · [简体中文](AUDITOR.zh-CN.md)
+
 Added in v0.2.0. This local observational audit reports `PRO-5X-LIKE`, `INCONCLUSIVE`, or `PRO-20X-LIKE` relative to a supplied independent comparison. It cannot establish an OpenAI backend entitlement error. There is no bundled Pro 5x dollar baseline. No complaint, report or support message is sent automatically.
+
+Since v0.2.1, the page and HTML evidence reports support Chinese and English. Select the language before exporting. Canonical JSON/CSV data and baseline validation are language-independent; changing language never creates a new measurement or changes its arithmetic.
 
 ## Research and reuse — 2026-09-10
 

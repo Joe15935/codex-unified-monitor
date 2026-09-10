@@ -359,6 +359,37 @@ button.primary:hover {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.topbar > div:first-child {
+  min-width: 0;
+}
+.language-control {
+  flex: 0 0 auto;
+}
+.language-control select {
+  width: auto;
+  min-width: 86px;
+  margin: 0;
+}
+.language-control small {
+  display: block;
+  max-width: 200px;
+  color: var(--amber);
+}
+.language-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+}
+:root[lang="zh-CN"] .brand-sub {
+  letter-spacing: 1.5px;
+}
+:root[lang="zh-CN"] .audit-assessment > strong {
+  overflow-wrap: anywhere;
 }
 .account {
   font-size: 11px;
@@ -559,7 +590,9 @@ button.primary:hover {
   gap: 10px;
 }
 .chart-scale {
-  width: 44px;
+  width: max-content;
+  min-width: 44px;
+  white-space: nowrap;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -1164,6 +1197,12 @@ details pre {
   align-items: center;
   gap: 10px;
   margin-bottom: 25px;
+  flex-wrap: wrap;
+}
+.compact .language-control select {
+  min-width: 76px;
+  font-size: 11px;
+  padding: 6px;
 }
 .compact header h2 {
   font-size: 21px;

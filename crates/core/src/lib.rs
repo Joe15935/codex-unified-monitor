@@ -4,6 +4,7 @@ pub mod analytics;
 pub mod auditor;
 pub mod export;
 pub mod ingest;
+pub mod locale;
 pub mod parser;
 pub mod pricing;
 pub mod settings;

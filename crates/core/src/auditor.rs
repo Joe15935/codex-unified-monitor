@@ -1083,6 +1083,9 @@ pub fn import_baseline(
 }
 
 pub fn render(e: &Evidence, format: &str) -> Result<String> {
+    render_localized(e, format, "en")
+}
+pub fn render_localized(e: &Evidence, format: &str, language: &str) -> Result<String> {
     use crate::export::{csv_cell, escape};
     match format {
         "json" => Ok(serde_json::to_string_pretty(&envelope(e)?)?),
@@ -1118,18 +1121,66 @@ pub fn render(e: &Evidence, format: &str) -> Result<String> {
             Ok(out)
         }
         "html" => {
-            let summary = serde_json::to_string_pretty(&e.summary)?;
-            let mut out=format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>Pro Tier Auditor — Evidence Report</title><style>body{{font:15px -apple-system,sans-serif;color:#183b34;max-width:1100px;margin:40px auto;padding:24px;line-height:1.6}}table{{border-collapse:collapse;width:100%;font-size:12px}}th,td{{padding:8px;text-align:left;border-bottom:1px solid #dfe6de;vertical-align:top}}pre{{white-space:pre-wrap;background:#f6f7f2;padding:16px}}.scroll{{overflow:auto}}small{{color:#65776e}}</style><h1>Pro Tier Auditor / 套餐额度审计</h1><p>{} · {} · {}</p><h2>{}</h2><p>Confidence: {} (heuristic, conditional)</p><p>{}</p><h2>Observed data</h2><pre>{}</pre><h2>Method and limitations</h2><ol>",escape(&e.reported_plan),escape(&utc(e.generated_at)),escape(METHOD),escape(&e.assessment),escape(&e.confidence),escape(BOUNDARY),escape(&summary));
+            let tr = |source: &str| escape(crate::locale::text(language, source));
+            let lang = if language == "zh-CN" { "zh-CN" } else { "en" };
+            let summary = crate::locale::display_json(language, &serde_json::to_value(&e.summary)?);
+            let mut out = format!(
+                r#"<!doctype html><html lang="{lang}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>{title}</title><style>body{{font:15px -apple-system,sans-serif;color:#183b34;max-width:1100px;margin:40px auto;padding:24px;line-height:1.6}}table{{border-collapse:collapse;width:100%;font-size:12px}}th,td{{padding:8px;text-align:left;border-bottom:1px solid #dfe6de;vertical-align:top}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f7f2;padding:16px}}.scroll{{overflow:auto}}small{{color:#65776e}}</style><h1>{heading}</h1><p>{plan} · {time} · {method}</p><h2>{assessment}</h2><p>{confidence_label} {confidence} ({conditional})</p><p>{boundary}</p><h2>{observed}</h2><pre>{summary}</pre><h2>{limitations}</h2><ol>"#,
+                title = tr("Pro Tier Auditor — Evidence Report"),
+                heading = tr("Pro Tier Auditor"),
+                plan = escape(&e.reported_plan),
+                time = escape(&utc(e.generated_at)),
+                method = escape(METHOD),
+                assessment = tr(&e.assessment),
+                confidence_label = tr("Confidence:"),
+                confidence = tr(&e.confidence),
+                conditional = tr("heuristic, conditional"),
+                boundary = tr(BOUNDARY),
+                observed = tr("Observed data"),
+                summary = escape(&serde_json::to_string_pretty(&summary)?),
+                limitations = tr("Method and limitations")
+            );
             for line in &e.methodology {
-                out.push_str(&format!("<li>{}</li>", escape(line)));
+                out.push_str(&format!("<li>{}</li>", tr(line)));
             }
-            out.push_str("</ol><h2>Configuration and comparison</h2><pre>");
-            out.push_str(&escape(&serde_json::to_string_pretty(&serde_json::json!({"controls":e.controls,"pricing":e.pricing,"assessment_reasons":e.assessment_reasons,"baseline_source":e.baseline_source,"baseline_capacity":e.baseline_capacity,"relative_index":e.relative_index,"relative_range":e.relative_range}))?));
-            out.push_str("</pre><h2>Every observed quota change</h2><div class=\"scroll\"><table><thead><tr><th>UTC interval</th><th>Remaining</th><th>Δ used</th><th>Fresh / cached / output</th><th>API eq.</th><th>$ / 1%</th><th>Model / reasoning</th><th>Eligibility</th></tr></thead><tbody>");
+            out.push_str(&format!(
+                "</ol><h2>{}</h2><pre>",
+                tr("Configuration and comparison")
+            ));
+            let comparison = serde_json::json!({"controls":e.controls,"pricing":e.pricing,"assessment_reasons":e.assessment_reasons,"baseline_source":e.baseline_source,"baseline_capacity":e.baseline_capacity,"relative_index":e.relative_index,"relative_range":e.relative_range});
+            out.push_str(&escape(&serde_json::to_string_pretty(
+                &crate::locale::display_json(language, &comparison),
+            )?));
+            out.push_str(&format!(
+                "</pre><h2>{}</h2><div class=\"scroll\"><table><thead><tr>",
+                tr("Every observed quota change")
+            ));
+            for heading in [
+                "UTC interval",
+                "Remaining",
+                "Δ used",
+                "Fresh / cached / output",
+                "API eq.",
+                "$ / 1%",
+                "Model / reasoning",
+                "Eligibility",
+            ] {
+                out.push_str(&format!("<th>{}</th>", tr(heading)));
+            }
+            out.push_str("</tr></thead><tbody>");
             for r in &e.intervals {
-                out.push_str(&format!("<tr><td>{}<br>{}</td><td>{} → {}</td><td>{}</td><td>{} / {} / {}</td><td>${:.4}</td><td>{}</td><td>{}<br>{}</td><td>{}</td></tr>",escape(&utc(r.start)),escape(&utc(r.end)),r.weekly_before.map(|v|format!("{v:.1}%")).unwrap_or("—".into()),r.weekly_after.map(|v|format!("{v:.1}%")).unwrap_or("—".into()),r.delta_quota.map(|v|format!("{v:+.1} pp")).unwrap_or("—".into()),r.tokens.uncached_input_tokens,r.tokens.cached_input_tokens,r.tokens.output_tokens,r.api_equivalent,r.usd_per_percent.map(|v|format!("${v:.4}")).unwrap_or("—".into()),escape(&r.models.join(" / ")),escape(&r.efforts.join(" / ")),escape(&if r.eligible {"Eligible".into()}else{r.reasons.join("; ")})));
+                let reasons = if r.eligible {
+                    tr("Eligible")
+                } else {
+                    r.reasons
+                        .iter()
+                        .map(|reason| tr(reason))
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                };
+                out.push_str(&format!("<tr><td>{}<br>{}</td><td>{} → {}</td><td>{}</td><td>{} / {} / {}</td><td>${:.4}</td><td>{}</td><td>{}<br>{}</td><td>{}</td></tr>",escape(&utc(r.start)),escape(&utc(r.end)),r.weekly_before.map(|v|format!("{v:.1}%")).unwrap_or("—".into()),r.weekly_after.map(|v|format!("{v:.1}%")).unwrap_or("—".into()),r.delta_quota.map(|v|format!("{v:+.1} {}",tr("pp"))).unwrap_or("—".into()),r.tokens.uncached_input_tokens,r.tokens.cached_input_tokens,r.tokens.output_tokens,r.api_equivalent,r.usd_per_percent.map(|v|format!("${v:.4}")).unwrap_or("—".into()),escape(&r.models.join(" / ")),r.efforts.iter().map(|effort|tr(effort)).collect::<Vec<_>>().join(" / "),reasons));
             }
-            out.push_str("</tbody></table></div><p><small>Share the companion JSON for machine-readable counters, controls, reset times, frozen prices and integrity checksum. No account identifiers or private project content are included.</small></p></html>");
+            out.push_str(&format!("</tbody></table></div><p><small>{}</small></p></html>",tr("Share the companion JSON for machine-readable counters, controls, reset times, frozen prices and integrity checksum. No account identifiers or private project content are included.")));
             Ok(out)
         }
         _ => anyhow::bail!("Use json, html or csv"),

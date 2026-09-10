@@ -54,7 +54,7 @@ async fn dashboard(app: tauri::AppHandle, range: Option<Range>) -> Result<Value,
   let state=local.lock().map_err(|_|"Local status unavailable")?;r.diagnostics.scan_status=state.0.clone();r.diagnostics.last_local_update=state.1;r.meta.updated_at=state.1;
   let history=account::history(&store,&q.account_key).map_err(|e|e.to_string())?;
   let five=analytics::burn(&history,"5h",&store,&c,&settings).map_err(|e|e.to_string())?;let week=analytics::burn(&history,"week",&store,&c,&settings).map_err(|e|e.to_string())?;
-  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":"0.2.0"}))
+  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":"0.2.1"}))
  }).await.map_err(|e|e.to_string())?
 }
 #[tauri::command]
@@ -78,6 +78,33 @@ fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String
     state
         .tx
         .send(Message::Settings)
+        .map_err(|e| e.to_string())?;
+    tray::set_language(&app, &settings.language).map_err(|e| e.to_string())?;
+    app.emit("language-changed", &settings.language)
+        .map_err(|e| e.to_string())?;
+    app.emit("monitor-updated", ()).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn set_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
+    if !matches!(language.as_str(), "en" | "zh-CN") {
+        return Err("Choose English or Simplified Chinese".into());
+    }
+    let state = app.state::<AppState>();
+    {
+        let store = state
+            .store
+            .lock()
+            .map_err(|_| "Database lock unavailable")?;
+        let mut settings = Settings::load(&store).map_err(|e| e.to_string())?;
+        settings.language = language.clone();
+        settings.save(&store).map_err(|e| e.to_string())?;
+    }
+    tray::set_language(&app, &language).map_err(|e| e.to_string())?;
+    state
+        .tx
+        .send(Message::Settings)
+        .map_err(|e| e.to_string())?;
+    app.emit("language-changed", &language)
         .map_err(|e| e.to_string())?;
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
 }
@@ -152,8 +179,9 @@ async fn export_report(
         }
         let q = account::cached(&store).map_err(|e| e.to_string())?;
         let history = account::history(&store, &q.account_key).map_err(|e| e.to_string())?;
-        let content = codexmeter_core::export::render(&r, &history, &format, &dataset)
-            .map_err(|e| e.to_string())?;
+        let content =
+            codexmeter_core::export::render_localized(&r, &history, &format, &dataset, &s.language)
+                .map_err(|e| e.to_string())?;
         let dir = codexmeter_core::data_dir().join("exports");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = dir.join(format!(
@@ -302,13 +330,22 @@ fn clear_audit_baseline(app: tauri::AppHandle) -> Result<(), String> {
 }
 #[tauri::command]
 async fn export_audit(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let language = {
+        let state = app.state::<AppState>();
+        let store = state
+            .store
+            .lock()
+            .map_err(|_| "Database lock unavailable")?;
+        Settings::load(&store).map_err(|e| e.to_string())?.language
+    };
     let view = audit_report(app).await?;
     let dir = codexmeter_core::data_dir().join("exports");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%S%6f").to_string();
     let mut paths = Vec::new();
     for format in ["json", "html", "csv"] {
-        let content = auditor::render(&view.evidence, format).map_err(|e| e.to_string())?;
+        let content = auditor::render_localized(&view.evidence, format, &language)
+            .map_err(|e| e.to_string())?;
         let path = dir.join(format!("tier-audit-{stamp}.{format}"));
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create_new(true);
@@ -390,6 +427,7 @@ pub fn run() {
             dashboard,
             refresh,
             save_settings,
+            set_language,
             set_autostart,
             open_dashboard,
             session_detail,

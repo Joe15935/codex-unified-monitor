@@ -59,6 +59,7 @@ export interface Price {
   notes: string;
 }
 export interface Settings {
+  language: "en" | "zh-CN";
   timezone: string;
   quota_poll_seconds: number;
   tray_metric: string;

@@ -91,20 +91,28 @@ fn cells(data: &Value, quota: bool) -> Result<(Vec<String>, Vec<Vec<String>>)> {
     }
     Ok((head.split(',').map(str::to_owned).collect(), rows))
 }
-fn html_table(data: &Value, quota: bool) -> Result<String> {
+fn html_table(data: &Value, quota: bool, language: &str) -> Result<String> {
     let (head, rows) = cells(data, quota)?;
     // Full metadata remains available in JSON/CSV; the printable report focuses
     // on comparable counters and values instead of a wall of JSON.
     let keep = head.len() - if quota { 0 } else { 1 };
     let mut out = String::from("<div class=scroll><table><thead><tr>");
     for h in &head[..keep] {
-        out.push_str(&format!("<th>{}</th>", escape(&h.replace('_', " "))));
+        out.push_str(&format!(
+            "<th>{}</th>",
+            escape(crate::locale::text(language, &h.replace('_', " ")))
+        ));
     }
     out.push_str("</tr></thead><tbody>");
     for row in rows {
         out.push_str("<tr>");
-        for c in &row[..keep] {
-            out.push_str(&format!("<td>{}</td>", escape(c)));
+        for (index, c) in row[..keep].iter().enumerate() {
+            let display = if (quota && index == 2) || c == "UNPRICED" {
+                crate::locale::text(language, c)
+            } else {
+                c
+            };
+            out.push_str(&format!("<td>{}</td>", escape(display)));
         }
         out.push_str("</tr>");
     }
@@ -112,6 +120,16 @@ fn html_table(data: &Value, quota: bool) -> Result<String> {
     Ok(out)
 }
 pub fn render(report: &Report, quota: &[Quota], format: &str, dataset: &str) -> Result<String> {
+    render_localized(report, quota, format, dataset, "en")
+}
+pub fn render_localized(
+    report: &Report,
+    quota: &[Quota],
+    format: &str,
+    dataset: &str,
+    language: &str,
+) -> Result<String> {
+    let tr = |source: &str| escape(crate::locale::text(language, source));
     let data = match dataset {
         "daily" => serde_json::to_value(&report.trend)?,
         "models" => serde_json::to_value(&report.models)?,
@@ -124,12 +142,33 @@ pub fn render(report: &Report, quota: &[Quota], format: &str, dataset: &str) -> 
         return Ok(serde_json::to_string_pretty(&data)?);
     }
     if format == "html" {
-        let body = if dataset == "all" {
-            format!("<h2>Usage over time</h2>{}<h2>Models</h2>{}<h2>Sessions</h2>{}<h2>Quota history</h2>{}",html_table(&serde_json::to_value(&report.trend)?,false)?,html_table(&serde_json::to_value(&report.models)?,false)?,html_table(&serde_json::to_value(&report.sessions)?,false)?,html_table(&serde_json::to_value(quota)?,true)?)
+        let mut body = String::new();
+        if dataset == "all" {
+            for (title, value, is_quota) in [
+                (
+                    "Usage over time",
+                    serde_json::to_value(&report.trend)?,
+                    false,
+                ),
+                ("Models", serde_json::to_value(&report.models)?, false),
+                ("Sessions", serde_json::to_value(&report.sessions)?, false),
+                ("Quota history", serde_json::to_value(quota)?, true),
+            ] {
+                body.push_str(&format!(
+                    "<h2>{}</h2>{}",
+                    tr(title),
+                    html_table(&value, is_quota, language)?
+                ));
+            }
         } else {
-            html_table(&data, dataset == "quota")?
-        };
-        return Ok(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Codex Unified Monitor report</title><style>body{{font:14px system-ui;max-width:1400px;margin:40px auto;padding:24px;color:#183630;background:#f6f7f2}}.scroll{{overflow:auto;background:white;border:1px solid #d8e1db;border-radius:12px}}table{{border-collapse:collapse;width:100%}}th,td{{padding:12px;text-align:right;border-bottom:1px solid #e4e9e3;font-variant-numeric:tabular-nums}}th{{background:#e7efe2;font-size:12px;text-transform:capitalize}}th:first-child,td:first-child{{text-align:left}}h1{{font-weight:600}}p{{line-height:1.7;max-width:1000px}}.summary{{font-size:20px}}@media print{{body{{margin:0;padding:0;background:white;font-size:9px}}th,td{{padding:4px}}.scroll{{overflow:visible}}}}</style><h1>Codex Unified Monitor</h1><p>Local metadata · {} · {} · {}</p><p class=summary>{} total tokens · {} cached input · {} output</p><p>API equivalent values are theoretical base-rate estimates in USD, not subscription bills. Unknown models remain unpriced. Long-context, cache-write, service-tier and request-level adjustments are not reconstructed. Quota timestamps are Unix seconds; blank quota fields are unavailable.</p>{}</html>",escape(&report.timezone),escape(&report.range.period),escape(dataset),report.total.tokens.total_tokens,report.total.tokens.cached_input_tokens,report.total.tokens.output_tokens,body));
+            body = html_table(&data, dataset == "quota", language)?;
+        }
+        let lang = if language == "zh-CN" { "zh-CN" } else { "en" };
+        return Ok(format!(r#"<!doctype html><html lang="{lang}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>{title}</title><style>body{{font:14px system-ui;max-width:1400px;margin:40px auto;padding:24px;color:#183630;background:#f6f7f2}}.scroll{{overflow:auto;background:white;border:1px solid #d8e1db;border-radius:12px}}table{{border-collapse:collapse;width:100%}}th,td{{padding:12px;text-align:right;border-bottom:1px solid #e4e9e3;font-variant-numeric:tabular-nums}}th{{background:#e7efe2;font-size:12px;text-transform:capitalize}}th:first-child,td:first-child{{text-align:left}}h1{{font-weight:600}}p{{line-height:1.7;max-width:1000px}}.summary{{font-size:20px}}@media print{{body{{margin:0;padding:0;background:white;font-size:9px}}th,td{{padding:4px}}.scroll{{overflow:visible}}}}</style><h1>Codex Unified Monitor</h1><p>{metadata} · {timezone} · {period} · {dataset}</p><p class=summary>{total_label}: {total} · {cached_label}: {cached} · {output_label}: {output}</p><p>{boundary}</p>{body}</html>"#,
+            title=tr("Codex Unified Monitor report"), metadata=tr("Local metadata"), timezone=escape(&report.timezone), period=tr(&report.range.period), dataset=tr(dataset),
+            total_label=tr("Total tokens"), total=report.total.tokens.total_tokens, cached_label=tr("Cached input"), cached=report.total.tokens.cached_input_tokens, output_label=tr("Output"), output=report.total.tokens.output_tokens,
+            boundary=tr("API equivalent values are theoretical base-rate estimates in USD, not subscription bills. Unknown models remain unpriced. Long-context, cache-write, service-tier and request-level adjustments are not reconstructed. Quota timestamps are Unix seconds; blank quota fields are unavailable."),
+        ));
     }
     anyhow::ensure!(format == "csv", "Choose CSV, JSON or HTML");
     let (head, rows) = cells(&data, dataset == "quota")?;

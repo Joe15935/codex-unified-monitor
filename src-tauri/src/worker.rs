@@ -248,8 +248,9 @@ fn update_tray(app: &tauri::AppHandle, settings: &Settings) {
         _ => None,
     };
     let tip = format!(
-        "Codex Unified Monitor · {} · remaining quota",
-        q.meta.status
+        "Codex Unified Monitor · {} · {}",
+        codexmeter_core::locale::text(&settings.language, &q.meta.status),
+        codexmeter_core::locale::text(&settings.language, "remaining quota")
     );
     drop(q);
     let label = if settings.tray_metric.starts_with("today_") {
@@ -268,7 +269,12 @@ fn update_tray(app: &tauri::AppHandle, settings: &Settings) {
                     .money(&settings.pricing_mode)
                     .value()
                     .map(|v| format!("C ${v:.2}"))
-                    .unwrap_or("C unpriced".into())
+                    .unwrap_or_else(|| {
+                        format!(
+                            "C {}",
+                            codexmeter_core::locale::text(&settings.language, "unpriced")
+                        )
+                    })
             })
         })
     } else {

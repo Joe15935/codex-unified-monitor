@@ -4,6 +4,22 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
+struct TrayLabels([MenuItem<tauri::Wry>; 4]);
+const MENU_LABELS: [&str; 4] = [
+    "Open Dashboard",
+    "Refresh",
+    "Settings",
+    "Quit Codex Unified Monitor",
+];
+
+pub fn set_language(app: &tauri::AppHandle, language: &str) -> tauri::Result<()> {
+    if let Some(items) = app.try_state::<TrayLabels>() {
+        for (item, source) in items.inner().0.iter().zip(MENU_LABELS) {
+            item.set_text(codexmeter_core::locale::text(language, source))?;
+        }
+    }
+    Ok(())
+}
 pub fn show_dashboard(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -26,6 +42,16 @@ pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let menu = Menu::with_items(app, &[&open, &refresh, &settings, &quit])?;
+    app.manage(TrayLabels([open, refresh, settings, quit]));
+    let language = app
+        .state::<crate::AppState>()
+        .store
+        .lock()
+        .ok()
+        .and_then(|store| codexmeter_core::settings::Settings::load(&store).ok())
+        .map(|settings| settings.language)
+        .unwrap_or("zh-CN".into());
+    set_language(app, &language)?;
     TrayIconBuilder::with_id("monitor")
         .icon(tauri::include_image!("icons/tray-icon.png"))
         .icon_as_template(true)

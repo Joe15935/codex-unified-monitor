@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { Aggregate, Money } from "./types";
+import { getLanguage, t } from "./i18n";
 export const native = isTauri();
 export async function call<T>(
   command: string,
@@ -9,15 +10,16 @@ export async function call<T>(
   throw new Error("Open the desktop app to read your local Codex data.");
 }
 export const count = (n: number) =>
-  new Intl.NumberFormat("en-US", {
+  new Intl.NumberFormat(getLanguage(), {
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(n);
-export const exact = (n: number) => new Intl.NumberFormat("en-US").format(n);
+export const exact = (n: number) =>
+  new Intl.NumberFormat(getLanguage()).format(n);
 export const usd = (n: number | null | undefined) =>
   n == null
     ? "—"
-    : new Intl.NumberFormat("en-US", {
+    : new Intl.NumberFormat(getLanguage(), {
         style: "currency",
         currency: "USD",
         maximumFractionDigits: 2,
@@ -41,20 +43,20 @@ export function duration(seconds: number) {
   const h = Math.floor(n / 3600);
   const m = Math.floor((n % 3600) / 60);
   return h >= 24
-    ? `${Math.floor(h / 24)}d ${h % 24}h`
+    ? t("{days}d {hours}h", { days: Math.floor(h / 24), hours: h % 24 })
     : h > 0
-      ? `${h}h ${m}m`
-      : `${m}m ${n % 60}s`;
+      ? t("{hours}h {minutes}m", { hours: h, minutes: m })
+      : t("{minutes}m {seconds}s", { minutes: m, seconds: n % 60 });
 }
 export const date = (seconds: number | null | undefined, tz: string) =>
   seconds
-    ? new Intl.DateTimeFormat("en-US", {
+    ? new Intl.DateTimeFormat(getLanguage(), {
         timeZone: tz,
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       }).format(new Date(seconds * 1000))
-    : "Unavailable";
+    : t("Unavailable");
 export const priceNote =
   "Theoretical value at published token rates. This is not a ChatGPT/Codex subscription bill and does not represent OpenAI’s actual costs. Long-context, cache-write, service-tier and request-level adjustments are not reconstructed.";

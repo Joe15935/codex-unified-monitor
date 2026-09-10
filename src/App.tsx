@@ -1,3 +1,11 @@
+import {
+  t,
+  useLanguage,
+  applyLanguage,
+  getLanguage,
+  type Language,
+} from "./i18n";
+import LanguageSwitch from "./components/LanguageSwitch";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -42,7 +50,7 @@ const periods = [
   ["custom", "Custom"],
 ];
 function Badge({ status }: { status: string }) {
-  return <span className={`badge ${status.toLowerCase()}`}>{status}</span>;
+  return <span className={`badge ${status.toLowerCase()}`}>{t(status)}</span>;
 }
 function Stat({
   label,
@@ -55,9 +63,9 @@ function Stat({
 }) {
   return (
     <div className="stat">
-      <span className="muted">{label}</span>
+      <span className="muted">{t(label)}</span>
       <strong>{children}</strong>
-      {note && <small>{note}</small>}
+      {note && <small>{t(note)}</small>}
     </div>
   );
 }
@@ -88,19 +96,19 @@ function QuotaCard({
   return (
     <section className={`kpi ${!live ? "muted-kpi" : ""}`}>
       <div className="card-top">
-        <span>{title}</span>
+        <span>{t(title)}</span>
         <Badge status={w ? quota.meta.status : "UNAVAILABLE"} />
       </div>
       {w ? (
         <>
           <div className="quota-number">
-            {w.remaining_percent.toFixed(0)}
-            <span>% remaining</span>
+            {t(w.remaining_percent.toFixed(0))}
+            <span>{t("% remaining")}</span>
           </div>
           <div
             className="meter"
             role="meter"
-            aria-label={`${title} used`}
+            aria-label={t("{title} used", { title: title })}
             aria-valuenow={w.used_percent}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -108,11 +116,16 @@ function QuotaCard({
             <i style={{ width: `${w.used_percent}%` }} />
           </div>
           <div className="card-foot">
-            <span>{w.used_percent.toFixed(0)}% used</span>
+            <span>
+              {t(w.used_percent.toFixed(0))}
+              {t("% used")}
+            </span>
             <span title={date(w.resets_at, tz)}>
-              {w.resets_at
-                ? `Reset ${duration(w.resets_at - now)}`
-                : "Reset unavailable"}
+              {t(
+                w.resets_at
+                  ? t("Reset {time}", { time: duration(w.resets_at - now) })
+                  : "Reset unavailable",
+              )}
             </span>
           </div>
           <small className="reset-date">{date(w.resets_at, tz)}</small>
@@ -121,7 +134,7 @@ function QuotaCard({
         <>
           <div className="quota-number">—</div>
           <p className="muted">
-            This window was not returned by the account service.
+            {t("This window was not returned by the account service.")}{" "}
           </p>
         </>
       )}
@@ -131,60 +144,99 @@ function QuotaCard({
 function TokenStrip({ a }: { a: Aggregate }) {
   return (
     <div className="token-strip">
-      <Stat label="Total tokens" note="Raw input + output">
+      <Stat label={t("Total tokens")} note={t("Raw input + output")}>
         {count(a.tokens.total_tokens)}
       </Stat>
-      <Stat label="Fresh input">{count(a.tokens.uncached_input_tokens)}</Stat>
-      <Stat label="Cached input">{count(a.tokens.cached_input_tokens)}</Stat>
+      <Stat label={t("Fresh input")}>
+        {count(a.tokens.uncached_input_tokens)}
+      </Stat>
+      <Stat label={t("Cached input")}>
+        {count(a.tokens.cached_input_tokens)}
+      </Stat>
       <Stat
-        label="Output"
-        note={`${count(a.tokens.reasoning_output_tokens)} reasoning, included`}
+        label={t("Output")}
+        note={t("{count} reasoning, included", {
+          count: count(a.tokens.reasoning_output_tokens),
+        })}
       >
         {count(a.tokens.output_tokens)}
       </Stat>
-      <Stat label="Cache hit" note="Cached / raw input">
+      <Stat label={t("Cache hit")} note={t("Cached / raw input")}>
         {percent(ratio(a))}
       </Stat>
     </div>
   );
 }
-function BurnPanel({ b, title, tz }: { b: Burn; title: string; tz: string }) {
+function BurnPanel({
+  b,
+  title,
+  tz,
+  weekly = false,
+}: {
+  b: Burn;
+  title: string;
+  tz: string;
+  weekly?: boolean;
+}) {
   return (
     <section className="panel burn">
       <div className="card-top">
-        <h3>{title}</h3>
+        <h3>{t(title)}</h3>
         <Badge status="ESTIMATED" />
       </div>
       {b.percent_per_hour == null ? (
         <>
-          <strong>{b.status}</strong>
+          <strong>{t(b.status)}</strong>
           <p className="muted">
-            {b.status.toLowerCase() === "unavailable"
-              ? "The account provider has not supplied this quota window."
-              : `${b.samples} samples · Requires 4 readings over at least 30 minutes and a measurable quota change.`}
+            {t(
+              b.status.toLowerCase() === "unavailable"
+                ? "The account provider has not supplied this quota window."
+                : t(
+                    "{count} samples · Requires 4 readings over at least 30 minutes and a measurable quota change.",
+                    { count: b.samples },
+                  ),
+            )}
           </p>
         </>
       ) : (
         <>
           <strong>
-            {title.startsWith("Weekly")
-              ? `${b.percent_per_day?.toFixed(1)}% / day`
-              : `${b.percent_per_hour.toFixed(1)}% / hour`}
+            {t(
+              weekly
+                ? t("{value}% / day", {
+                    value: b.percent_per_day?.toFixed(1) ?? "—",
+                  })
+                : t("{value}% / hour", {
+                    value: b.percent_per_hour.toFixed(1),
+                  }),
+            )}
           </strong>
           <p>
-            {b.resets_before_exhaustion
-              ? "Window resets before projected exhaustion."
-              : `Projected exhaustion ${date(b.exhausted_at, tz)}`}
+            {t(
+              b.resets_before_exhaustion
+                ? "Window resets before projected exhaustion."
+                : t("Projected exhaustion {time}", {
+                    time: date(b.exhausted_at, tz),
+                  }),
+            )}
           </p>
           <div className="observed">
-            <span>Observed efficiency / 1% quota</span>
+            <span>{t("Observed efficiency / 1% quota")}</span>
             <b>
-              {b.tokens_per_percent == null ? "—" : count(b.tokens_per_percent)}{" "}
-              tokens · {usd(b.equivalent_usd_per_percent)}
+              {t(
+                b.tokens_per_percent == null
+                  ? "—"
+                  : count(b.tokens_per_percent),
+              )}{" "}
+              {t("tokens ·")} {usd(b.equivalent_usd_per_percent)}
             </b>
             <small>
-              {b.output_per_percent == null ? "—" : count(b.output_per_percent)}{" "}
-              output tokens · {b.samples} readings over{" "}
+              {t(
+                b.output_per_percent == null
+                  ? "—"
+                  : count(b.output_per_percent),
+              )}{" "}
+              {t("output tokens ·")} {b.samples} {t("readings over")}{" "}
               {duration(b.observed_seconds)}
             </small>
           </div>
@@ -238,16 +290,16 @@ function SessionTable({
         setPage(0);
       }}
     >
-      {label}
-      {sort === name ? " ↓" : ""}
+      {t(label)}
+      {t(sort === name ? " ↓" : "")}
     </button>
   );
   return (
     <>
       <div className="table-controls">
         <input
-          aria-label="Search sessions"
-          placeholder="Find a project, session or model…"
+          aria-label={t("Search sessions")}
+          placeholder={t("Find a project, session or model…")}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -255,34 +307,34 @@ function SessionTable({
           }}
         />
         <select
-          aria-label="Session ranking"
+          aria-label={t("Session ranking")}
           value={sort}
           onChange={(e) => {
             setSort(e.target.value);
             setPage(0);
           }}
         >
-          <option value="value">Top API equivalent</option>
-          <option value="tokens">Most tokens</option>
-          <option value="cache">Lowest cache hit</option>
-          <option value="longest">Longest sessions</option>
-          <option value="output">Most output</option>
+          <option value="value">{t("Top API equivalent")}</option>
+          <option value="tokens">{t("Most tokens")}</option>
+          <option value="cache">{t("Lowest cache hit")}</option>
+          <option value="longest">{t("Longest sessions")}</option>
+          <option value="output">{t("Most output")}</option>
         </select>
       </div>
       <div className="table-wrap">
         <table className="session-table">
           <thead>
             <tr>
-              <th>Session / project</th>
-              <th>Models / reasoning</th>
+              <th>{t("Session / project")}</th>
+              <th>{t("Models / reasoning")}</th>
               <th>{sortButton("tokens", "Tokens")}</th>
-              <th>Fresh / cached</th>
+              <th>{t("Fresh / cached")}</th>
               <th>{sortButton("output", "Output")}</th>
               <th>{sortButton("cache", "Cache hit")}</th>
               <th>{sortButton("value", "Equivalent $")}</th>
-              <th>Turns / tools</th>
+              <th>{t("Turns / tools")}</th>
               <th>{sortButton("longest", "Duration")}</th>
-              <th>Started / last active</th>
+              <th>{t("Started / last active")}</th>
             </tr>
           </thead>
           <tbody>
@@ -295,7 +347,7 @@ function SessionTable({
                     title={s.id}
                   >
                     {s.project.split("/").filter(Boolean).slice(-1)[0] ||
-                      "Codex session"}
+                      t("Codex session")}
                   </button>
                   <small>
                     {s.id.slice(0, 8)}…{s.id.slice(-6)}
@@ -303,21 +355,27 @@ function SessionTable({
                 </td>
                 <td>
                   {s.models.join(", ") || "—"}
-                  <small>{s.efforts.join(", ") || "Unknown"}</small>
+                  <small>
+                    {t(
+                      s.efforts.map((effort) => t(effort)).join(", ") ||
+                        "Unknown",
+                    )}
+                  </small>
                 </td>
                 <td>{count(s.aggregate.tokens.total_tokens)}</td>
                 <td>
                   {count(s.aggregate.tokens.uncached_input_tokens)}
                   <small>
-                    {count(s.aggregate.tokens.cached_input_tokens)} cached
+                    {count(s.aggregate.tokens.cached_input_tokens)}{" "}
+                    {t("cached")}{" "}
                   </small>
                 </td>
                 <td>{count(s.aggregate.tokens.output_tokens)}</td>
                 <td>{percent(ratio(s.aggregate))}</td>
-                <td title={priceNote}>
+                <td title={t(priceNote)}>
                   {usd(value(money(s.aggregate, mode)))}
                   {money(s.aggregate, mode).unpriced_tokens > 0 && (
-                    <small className="amber">Partly unpriced</small>
+                    <small className="amber">{t("Partly unpriced")}</small>
                   )}
                 </td>
                 <td>
@@ -333,14 +391,16 @@ function SessionTable({
           </tbody>
         </table>
         {!filtered.length && (
-          <div className="empty-chart">No sessions match this view.</div>
+          <div className="empty-chart">{t("No sessions match this view.")}</div>
         )}
       </div>
       <div className="pagination">
-        <span>{filtered.length} sessions · metadata only</span>
+        <span>
+          {filtered.length} {t("sessions · metadata only")}
+        </span>
         <div>
           <button onClick={() => setPage(current - 1)} disabled={current === 0}>
-            Previous
+            {t("Previous")}{" "}
           </button>
           <span>
             {current + 1} / {Math.max(1, Math.ceil(filtered.length / limit))}
@@ -349,7 +409,7 @@ function SessionTable({
             onClick={() => setPage(current + 1)}
             disabled={(current + 1) * limit >= filtered.length}
           >
-            Next
+            {t("Next")}{" "}
           </button>
         </div>
       </div>
@@ -376,36 +436,39 @@ function DetailDialog({
     <dialog ref={ref} className="detail-dialog" onCancel={onClose}>
       <div className="section-heading">
         <div>
-          <span className="eyebrow">SESSION DETAILS</span>
-          <h2>{detail?.id || "Loading session…"}</h2>
+          <span className="eyebrow">{t("SESSION DETAILS")}</span>
+          <h2>{detail?.id || t("Loading session…")}</h2>
         </div>
-        <button onClick={onClose} aria-label="Close session details">
-          Close
+        <button onClick={onClose} aria-label={t("Close session details")}>
+          {t("Close")}{" "}
         </button>
       </div>
       {detail && (
         <>
           <TokenStrip a={detail.aggregate} />
           <div className="inline-summary">
-            <b>API equivalent {usd(value(money(detail.aggregate, mode)))}</b>
+            <b>
+              {t("API equivalent")} {usd(value(money(detail.aggregate, mode)))}
+            </b>
             <span>
-              {percent(coverage(money(detail.aggregate, mode)))} priced
+              {percent(coverage(money(detail.aggregate, mode)))}{" "}
+              {t("priced")}{" "}
             </span>
           </div>
           <Trend points={detail.timeline} mode={mode} />
           <div className="two-col">
             <section>
-              <h3>Model & reasoning changes</h3>
-              {detail.model_changes.map(([t, m, e], i) => (
+              <h3>{t("Model & reasoning changes")}</h3>
+              {detail.model_changes.map(([timestamp, m, e], i) => (
                 <p key={i}>
-                  <small>{date(t, tz)}</small>
+                  <small>{date(timestamp, tz)}</small>
                   <br />
-                  {m} · {e || "Unknown effort"}
+                  {m} · {t(e || "Unknown effort")}
                 </p>
               ))}
             </section>
             <section>
-              <h3>Tool calls</h3>
+              <h3>{t("Tool calls")}</h3>
               {detail.tools.map(([tool, n]) => (
                 <div className="key-row" key={tool}>
                   <span>{tool}</span>
@@ -415,8 +478,9 @@ function DetailDialog({
             </section>
           </div>
           <p className="muted">
-            Only counters and metadata are stored. Prompts, reasoning text and
-            tool outputs are excluded.
+            {t(
+              "Only counters and metadata are stored. Prompts, reasoning text and tool outputs are excluded.",
+            )}{" "}
           </p>
         </>
       )}
@@ -433,6 +497,9 @@ function Preferences({
   onToast: (s: string) => void;
 }) {
   const [draft, setDraft] = useState<Settings>(structuredClone(data.settings));
+  useEffect(() => {
+    setDraft((previous) => ({ ...previous, language: data.settings.language }));
+  }, [data.settings.language]);
   const [busy, setBusy] = useState(false);
   const [auto, setAuto] = useState(data.autostart);
   const [alias, setAlias] = useState("");
@@ -444,51 +511,55 @@ function Preferences({
   return (
     <div className="settings-grid">
       <section className="panel">
-        <h2>Preferences</h2>
+        <h2>{t("Preferences")}</h2>
+        <div className="language-setting">
+          <span>{t("Language")}</span>
+          <LanguageSwitch />
+        </div>
         <label>
-          Menu bar metric
+          {t("Menu bar metric")}{" "}
           <select
             value={draft.tray_metric}
             onChange={(e) => set("tray_metric", e.target.value)}
           >
-            <option value="weekly">Weekly remaining</option>
-            <option value="five_hour">5-hour remaining</option>
-            <option value="today_value">Today API equivalent</option>
-            <option value="today_tokens">Today tokens</option>
+            <option value="weekly">{t("Weekly remaining")}</option>
+            <option value="five_hour">{t("5-hour remaining")}</option>
+            <option value="today_value">{t("Today API equivalent")}</option>
+            <option value="today_tokens">{t("Today tokens")}</option>
           </select>
         </label>
         <label>
-          Time zone
+          {t("Time zone")}{" "}
           <input
             value={draft.timezone}
             onChange={(e) => set("timezone", e.target.value)}
           />
           <small>
-            Calendar days and Monday-start weeks use this time zone.
+            {t("Calendar days and Monday-start weeks use this time zone.")}{" "}
           </small>
         </label>
         <label>
-          Quota refresh
+          {t("Quota refresh")}{" "}
           <select
             value={draft.quota_poll_seconds}
             onChange={(e) => set("quota_poll_seconds", Number(e.target.value))}
           >
             {[60, 90, 120, 300, 600].map((n) => (
               <option key={n} value={n}>
-                {n} seconds
+                {n} {t("seconds")}{" "}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Appearance
+          {t("Appearance")}{" "}
           <select
             value={draft.theme}
             onChange={(e) => set("theme", e.target.value)}
           >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value="system">{t("System")}</option>
+            <option value="light">{t("Light")}</option>
+            <option value="dark">{t("Dark")}</option>
           </select>
         </label>
         <label className="check">
@@ -508,7 +579,7 @@ function Preferences({
               }
             }}
           />
-          Launch at Login
+          {t("Launch at Login")}{" "}
         </label>
         <label className="check">
           <input
@@ -516,34 +587,35 @@ function Preferences({
             checked={draft.account_enabled}
             onChange={(e) => set("account_enabled", e.target.checked)}
           />
-          Read live account quota
+          {t("Read live account quota")}{" "}
         </label>
         <small>
-          Turning this off disconnects this monitor. It does not sign you out of
-          Codex.
+          {t(
+            "Turning this off disconnects this monitor. It does not sign you out of Codex.",
+          )}{" "}
         </small>
       </section>
       <section className="panel">
-        <h2>Equivalent value</h2>
+        <h2>{t("Equivalent value")}</h2>
         <label>
-          Pricing basis
+          {t("Pricing basis")}{" "}
           <select
             value={draft.pricing_mode}
             onChange={(e) => set("pricing_mode", e.target.value)}
           >
-            <option value="public_api">Public API Equivalent</option>
+            <option value="public_api">{t("Public API Equivalent")}</option>
             <option value="codex_work">
-              Codex / Work Rate-Card Equivalent
+              {t("Codex / Work Rate-Card Equivalent")}{" "}
             </option>
           </select>
         </label>
         <label>
-          Monthly subscription cost (USD)
+          {t("Monthly subscription cost (USD)")}{" "}
           <input
             type="number"
             min="0.01"
             step="0.01"
-            placeholder="Optional; enter your own price"
+            placeholder={t("Optional; enter your own price")}
             value={draft.monthly_subscription_cost ?? ""}
             onChange={(e) =>
               set(
@@ -554,14 +626,15 @@ function Preferences({
           />
         </label>
         <p className="muted">
-          Enables the Equivalent Value Multiple and break-even comparison. No
-          subscription price is assumed.
+          {t(
+            "Enables the Equivalent Value Multiple and break-even comparison. No subscription price is assumed.",
+          )}{" "}
         </p>
-        <h3>Cache health thresholds</h3>
+        <h3>{t("Cache health thresholds")}</h3>
         <div className="three-col">
           {["Excellent ≥", "Good ≥", "Average ≥"].map((x, i) => (
             <label key={x}>
-              {x}
+              {t(x)}
               <input
                 type="number"
                 min="0"
@@ -578,19 +651,20 @@ function Preferences({
           ))}
         </div>
         <small>
-          Below the Average threshold is Poor. Ratios are weighted by raw input
-          tokens.
+          {t(
+            "Below the Average threshold is Poor. Ratios are weighted by raw input tokens.",
+          )}{" "}
         </small>
-        <h3>Model aliases</h3>
+        <h3>{t("Model aliases")}</h3>
         <div className="alias-row">
           <input
-            aria-label="Unknown model alias"
-            placeholder="Unknown model name"
+            aria-label={t("Unknown model alias")}
+            placeholder={t("Unknown model name")}
             value={alias}
             onChange={(e) => setAlias(e.target.value)}
           />
           <select
-            aria-label="Alias target"
+            aria-label={t("Alias target")}
             value={target}
             onChange={(e) => setTarget(e.target.value)}
           >
@@ -611,7 +685,7 @@ function Preferences({
               }
             }}
           >
-            Add
+            {t("Add")}{" "}
           </button>
         </div>
         {Object.entries(draft.aliases).map(([a, b]) => (
@@ -626,29 +700,30 @@ function Preferences({
                 set("aliases", next);
               }}
             >
-              Remove
+              {t("Remove")}{" "}
             </button>
           </div>
         ))}
       </section>
       <section className="panel full">
-        <h2>Custom model rates</h2>
+        <h2>{t("Custom model rates")}</h2>
         <p className="muted">
-          USD per 1 million tokens, for the selected pricing basis. These are
-          explicitly user supplied estimates.
+          {t(
+            "USD per 1 million tokens, for the selected pricing basis. These are explicitly user supplied estimates.",
+          )}{" "}
         </p>
         <div className="rate-form">
           <label>
-            Model
+            {t("Model")}{" "}
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="Exact model name"
+              placeholder={t("Exact model name")}
             />
           </label>
           {["Fresh input", "Cached input", "Output"].map((x, i) => (
             <label key={x}>
-              {x}
+              {t(x)}
               <input
                 type="number"
                 min="0"
@@ -694,13 +769,13 @@ function Preferences({
               setRates(["", "", ""]);
             }}
           >
-            Add rate
+            {t("Add rate")}{" "}
           </button>
         </div>
         {draft.custom_rates.map((p, i) => (
           <div className="key-row" key={`${p.model}:${p.pricing_mode}`}>
             <span>
-              {p.model} · {p.pricing_mode} · {p.input} / {p.cached_input} /{" "}
+              {p.model} · {t(p.pricing_mode)} · {p.input} / {p.cached_input} /{" "}
               {p.output}
             </span>
             <button
@@ -711,7 +786,7 @@ function Preferences({
                 )
               }
             >
-              Remove
+              {t("Remove")}{" "}
             </button>
           </div>
         ))}
@@ -729,7 +804,7 @@ function Preferences({
             }
           }}
         >
-          {busy ? "Saving…" : "Save preferences"}
+          {t(busy ? "Saving…" : "Save preferences")}
         </button>
       </div>
     </div>
@@ -751,14 +826,20 @@ function Compact({
   const mode = data.settings.pricing_mode;
   const row = (title: string, w: Window | null) => (
     <div className="compact-row">
-      <span>{title}</span>
+      <span>{t(title)}</span>
       <b>
-        {w ? `${w.remaining_percent.toFixed(0)}% remaining` : "Unavailable"}
+        {t(
+          w
+            ? t("{value}% remaining", { value: w.remaining_percent.toFixed(0) })
+            : "Unavailable",
+        )}
       </b>
       <small>
-        {w?.resets_at
-          ? `reset ${duration(w.resets_at - now)}`
-          : "Window not returned"}
+        {t(
+          w?.resets_at
+            ? t("reset {time}", { time: duration(w.resets_at - now) })
+            : "Window not returned",
+        )}
       </small>
     </div>
   );
@@ -768,29 +849,32 @@ function Compact({
         <TokenGlyph />
         <div>
           <h2>Codex</h2>
-          <small>Unified Monitor</small>
+          <small>{t("Unified Monitor")}</small>
         </div>
         <Badge status={q.meta.status} />
+        <LanguageSwitch />
       </header>
       {row("5-hour", q.five_hour)}
       {row("Weekly", q.weekly)}
       <div className="compact-pair">
-        <Stat label="Today equivalent">{usd(value(money(a, mode)))}</Stat>
-        <Stat label="Cache hit">{percent(ratio(a))}</Stat>
+        <Stat label={t("Today equivalent")}>{usd(value(money(a, mode)))}</Stat>
+        <Stat label={t("Cache hit")}>{percent(ratio(a))}</Stat>
       </div>
       <div className="key-row">
-        <span>Reset credits</span>
-        <b>{q.reset_credits?.available_count ?? "Unavailable"}</b>
+        <span>{t("Reset credits")}</span>
+        <b>{q.reset_credits?.available_count ?? t("Unavailable")}</b>
       </div>
       <small className="muted">
-        {q.error ||
-          `${q.meta.updated_at ? `Last quota update ${duration(now - q.meta.updated_at)} ago` : "Connecting to account…"}`}
+        {t(
+          q.error ||
+            `${q.meta.updated_at ? t("Last quota update {time} ago", { time: duration(now - q.meta.updated_at) }) : "Connecting to account…"}`,
+        )}
       </small>
       <button
         className="primary wide"
         onClick={() => call("open_dashboard").catch((e) => onToast(String(e)))}
       >
-        Open Dashboard
+        {t("Open Dashboard")}{" "}
       </button>
       <footer>
         <button
@@ -799,17 +883,18 @@ function Compact({
             reload();
           }}
         >
-          Refresh
+          {t("Refresh")}{" "}
         </button>
         <button onClick={() => call("open_dashboard", { tab: "settings" })}>
-          Settings
+          {t("Settings")}{" "}
         </button>
-        <button onClick={() => call("quit")}>Quit</button>
+        <button onClick={() => call("quit")}>{t("Quit")}</button>
       </footer>
     </div>
   );
 }
 export default function App() {
+  useLanguage();
   const compact = new URLSearchParams(location.search).get("compact") === "1";
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
@@ -834,6 +919,7 @@ export default function App() {
     try {
       const d = await call<Data>("dashboard", { range });
       if (id === request.current) {
+        if (native && d.settings.language) applyLanguage(d.settings.language);
         setData(d);
         setError("");
       }
@@ -841,6 +927,25 @@ export default function App() {
       if (id === request.current) setError(String(e));
     }
   }, [range]);
+  useEffect(() => {
+    applyLanguage(getLanguage());
+    if (!native) return;
+    const unlisten = listen<Language>("language-changed", ({ payload }) => {
+      request.current += 1;
+      applyLanguage(payload);
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              settings: { ...previous.settings, language: payload },
+            }
+          : previous,
+      );
+    });
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, []);
   useEffect(() => {
     void reload();
     if (!native) return;
@@ -887,9 +992,11 @@ export default function App() {
       <div className="loading">
         <TokenGlyph />
         <h1>Codex Unified Monitor</h1>
-        <p>{error || "Reading local counters and preparing your dashboard…"}</p>
-        {error && <button onClick={() => void reload()}>Retry</button>}
-        <small>Local first · Read only · No telemetry</small>
+        <p>
+          {t(error || "Reading local counters and preparing your dashboard…")}
+        </p>
+        {error && <button onClick={() => void reload()}>{t("Retry")}</button>}
+        <small>{t("Local first · Read only · No telemetry")}</small>
       </div>
     );
   if (compact)
@@ -936,10 +1043,10 @@ export default function App() {
         <div className="brand">
           <TokenGlyph />
           <span>
-            Codex<span className="brand-sub">UNIFIED MONITOR</span>
+            Codex<span className="brand-sub">{t("UNIFIED MONITOR")}</span>
           </span>
         </div>
-        <nav aria-label="Main navigation">
+        <nav aria-label={t("Main navigation")}>
           {[
             ["overview", "Overview"],
             ["sessions", "Sessions"],
@@ -955,16 +1062,15 @@ export default function App() {
               key={id}
               onClick={() => setTab(id)}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <span className="local-mark">Local first</span>
+          <span className="local-mark">{t("Local first")}</span>
           <p>
-            Read only.
-            <br />
-            Your data stays here.
+            {t("Read only.")} <br />
+            {t("Your data stays here.")}{" "}
           </p>
           <small>v{data.version} · MIT</small>
         </div>
@@ -973,37 +1079,47 @@ export default function App() {
         <header className="topbar">
           <div>
             <h1>
-              {
+              {t(
                 {
                   overview: "Usage overview",
                   sessions: "Session analytics",
                   cache: "Cache health",
                   pricing: "API equivalent value",
-                  auditor: "Pro Tier Auditor / 套餐额度审计",
+                  auditor: "Pro Tier Auditor",
                   diagnostics: "Data health",
                   settings: "Settings",
-                }[tab]
-              }
+                }[tab],
+              )}
             </h1>
             <div className="status-line">
               <span
                 className={`status-dot ${q.meta.status === "LIVE" ? "live" : ""}`}
               />
               <span>
-                {q.meta.status === "LIVE"
-                  ? "Live quota"
-                  : `Quota ${q.meta.status.toLowerCase()}`}
-                {q.meta.updated_at
-                  ? ` · ${duration(now - q.meta.updated_at)} ago`
-                  : ""}
+                {t(
+                  q.meta.status === "LIVE"
+                    ? "Live quota"
+                    : t("Quota {status}", { status: t(q.meta.status) }),
+                )}
+                {t(
+                  q.meta.updated_at
+                    ? " · " +
+                        t("{time} ago", {
+                          time: duration(now - q.meta.updated_at),
+                        })
+                    : "",
+                )}
               </span>
               <span className="divider">/</span>
-              <span>Local data · {r.diagnostics.scan_status}</span>
+              <span>
+                {t("Local data ·")} {t(r.diagnostics.scan_status)}
+              </span>
             </div>
           </div>
           <div className="top-actions">
+            <LanguageSwitch />
             <span className="account" title={q.account_label || ""}>
-              {q.plan?.toUpperCase() || "ACCOUNT"}
+              {t(q.plan?.toUpperCase() || "ACCOUNT")}
               {q.account_label && <small>{q.account_label}</small>}
             </span>
             <button
@@ -1019,20 +1135,22 @@ export default function App() {
                 }
               }}
             >
-              Refresh
+              {t("Refresh")}{" "}
             </button>
           </div>
         </header>
         {error && (
           <div className="notice error" role="alert">
-            {error}
+            {t(error)}
           </div>
         )}
         {q.meta.status !== "LIVE" && (
           <div className="notice" role="status">
-            Live quota unavailable. {q.error}{" "}
+            {t("Live quota unavailable.")} {t(q.error)}{" "}
             {q.meta.updated_at &&
-              `Last successful reading: ${date(q.meta.updated_at, s.timezone)}.`}
+              t("Last successful reading: {time}.", {
+                time: date(q.meta.updated_at, s.timezone),
+              })}
           </div>
         )}
         {tab === "settings" ? (
@@ -1045,14 +1163,14 @@ export default function App() {
               <>
                 <div className="kpi-grid">
                   <QuotaCard
-                    title="5-Hour"
+                    title={t("5-Hour")}
                     window={q.five_hour}
                     quota={q}
                     tz={s.timezone}
                     now={now}
                   />
                   <QuotaCard
-                    title="Weekly"
+                    title={t("Weekly")}
                     window={q.weekly}
                     quota={q}
                     tz={s.timezone}
@@ -1060,39 +1178,50 @@ export default function App() {
                   />
                   <section className="kpi">
                     <div className="card-top">
-                      <span>Reset credits</span>
+                      <span>{t("Reset credits")}</span>
                       <Badge
                         status={q.reset_credits ? q.meta.status : "UNAVAILABLE"}
                       />
                     </div>
                     <div className="quota-number">
                       {q.reset_credits?.available_count ?? "—"}
-                      <span>available</span>
+                      <span> {t("available")}</span>
                     </div>
                     <p className="muted">
                       {q.reset_credits?.details?.some((c) => c.expires_at)
-                        ? `Earliest expiry ${date(Math.min(...q.reset_credits.details.flatMap((c) => (c.expires_at ? [c.expires_at] : []))), s.timezone)}`
+                        ? t("Earliest expiry {time}", {
+                            time: date(
+                              Math.min(
+                                ...q.reset_credits.details.flatMap((c) =>
+                                  c.expires_at ? [c.expires_at] : [],
+                                ),
+                              ),
+                              s.timezone,
+                            ),
+                          })
                         : q.reset_credits?.details === null
-                          ? "Grant / expiry details unavailable"
+                          ? t("Grant / expiry details unavailable")
                           : q.reset_credits?.available_count === 0
-                            ? "No reset credits currently available."
-                            : "Expiry unavailable"}
+                            ? t("No reset credits currently available.")
+                            : t("Expiry unavailable")}
                     </p>
                   </section>
-                  <section className="kpi value-kpi" title={priceNote}>
+                  <section className="kpi value-kpi" title={t(priceNote)}>
                     <div className="card-top">
-                      <span>API equivalent</span>
+                      <span>{t("API equivalent")}</span>
                       <Badge status="ESTIMATED" />
                     </div>
                     <div className="quota-number">
                       {usd(value(money(today, mode)))}
                     </div>
                     <div className="card-foot">
-                      <span>Today</span>
-                      <span>Month {usd(monthValue)}</span>
+                      <span>{t("Today")}</span>
+                      <span>
+                        {t("Month")} {usd(monthValue)}
+                      </span>
                     </div>
                     <small className="reset-date">
-                      Base-rate equivalent estimate
+                      {t("Base-rate equivalent estimate")}{" "}
                     </small>
                   </section>
                 </div>
@@ -1100,7 +1229,11 @@ export default function App() {
               </>
             )}
             <div className="rangebar">
-              <div className="segmented" role="group" aria-label="Time range">
+              <div
+                className="segmented"
+                role="group"
+                aria-label={t("Time range")}
+              >
                 {periods.map(([id, label]) => (
                   <button
                     key={id}
@@ -1114,7 +1247,7 @@ export default function App() {
                       )
                     }
                   >
-                    {label}
+                    {t(label)}
                   </button>
                 ))}
               </div>
@@ -1123,7 +1256,7 @@ export default function App() {
             {range.period === "custom" && (
               <div className="custom-range">
                 <label>
-                  From
+                  {t("From")}{" "}
                   <input
                     type="date"
                     value={customStart}
@@ -1131,7 +1264,7 @@ export default function App() {
                   />
                 </label>
                 <label>
-                  Through
+                  {t("Through")}{" "}
                   <input
                     type="date"
                     value={customEnd}
@@ -1147,7 +1280,7 @@ export default function App() {
                     })
                   }
                 >
-                  Apply dates
+                  {t("Apply dates")}{" "}
                 </button>
               </div>
             )}
@@ -1156,10 +1289,10 @@ export default function App() {
                 <section className="panel">
                   <div className="section-heading">
                     <div>
-                      <h2>Usage over time</h2>
+                      <h2>{t("Usage over time")}</h2>
                       <p className="muted">
-                        {exact(a.tokens.total_tokens)} tokens across{" "}
-                        {a.responses} recorded responses
+                        {exact(a.tokens.total_tokens)} {t("tokens across")}{" "}
+                        {a.responses} {t("recorded responses")}{" "}
                       </p>
                     </div>
                     <div className="segmented small">
@@ -1173,7 +1306,7 @@ export default function App() {
                           className={metric === id ? "selected" : ""}
                           onClick={() => setMetric(id)}
                         >
-                          {label}
+                          {t(label)}
                         </button>
                       ))}
                     </div>
@@ -1182,38 +1315,40 @@ export default function App() {
                   <div className="legend">
                     <span>
                       <i className="fresh" />
-                      Fresh input
+                      {t("Fresh input")}{" "}
                     </span>
                     <span>
                       <i className="cached" />
-                      Cached input
+                      {t("Cached input")}{" "}
                     </span>
                     <span>
                       <i className="out" />
-                      Output
+                      {t("Output")}{" "}
                     </span>
-                    <small>{percent(coverage(m))} priced</small>
+                    <small>
+                      {percent(coverage(m))} {t("priced")}
+                    </small>
                   </div>
                 </section>
                 <section className="panel">
                   <div className="section-heading">
-                    <h2>Model breakdown</h2>
+                    <h2>{t("Model breakdown")}</h2>
                     <span className="muted">
-                      One accounting model, every view
+                      {t("One accounting model, every view")}{" "}
                     </span>
                   </div>
                   <div className="table-wrap">
                     <table>
                       <thead>
                         <tr>
-                          <th>Model</th>
-                          <th>Tokens</th>
-                          <th>Fresh input</th>
-                          <th>Cached</th>
-                          <th>Output</th>
-                          <th>Cache hit</th>
-                          <th>Equivalent $</th>
-                          <th>Share</th>
+                          <th>{t("Model")}</th>
+                          <th>{t("Tokens")}</th>
+                          <th>{t("Fresh input")}</th>
+                          <th>{t("Cached")}</th>
+                          <th>{t("Output")}</th>
+                          <th>{t("Cache hit")}</th>
+                          <th>{t("Equivalent $")}</th>
+                          <th>{t("Share")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1256,26 +1391,27 @@ export default function App() {
                 </section>
                 <div className="two-col">
                   <BurnPanel
-                    title="5-hour burn rate"
+                    title={t("5-hour burn rate")}
                     b={data.burn.five_hour}
                     tz={s.timezone}
                   />
                   <BurnPanel
-                    title="Weekly burn rate"
+                    title={t("Weekly burn rate")}
+                    weekly
                     b={data.burn.weekly}
                     tz={s.timezone}
                   />
                 </div>
                 <p className="footnote">
-                  Observed efficiency compares account-wide quota changes with
-                  logs on this Mac. It is a local correlation, not OpenAI’s
-                  billing formula.
+                  {t(
+                    "Observed efficiency compares account-wide quota changes with logs on this Mac. It is a local correlation, not OpenAI’s billing formula.",
+                  )}{" "}
                 </p>
                 <section className="panel">
                   <div className="section-heading">
-                    <h2>Sessions worth a look</h2>
+                    <h2>{t("Sessions worth a look")}</h2>
                     <button onClick={() => setTab("sessions")}>
-                      All sessions
+                      {t("All sessions")}{" "}
                     </button>
                   </div>
                   <SessionTable
@@ -1291,7 +1427,7 @@ export default function App() {
             {tab === "sessions" && (
               <section className="panel">
                 <div className="section-heading">
-                  <h2>Find where the tokens went</h2>
+                  <h2>{t("Find where the tokens went")}</h2>
                   <Badge status="LOCAL" />
                 </div>
                 <SessionTable
@@ -1306,42 +1442,50 @@ export default function App() {
               <>
                 <div className="cache-hero panel">
                   <div>
-                    <span className="eyebrow">CACHE HIT RATIO</span>
+                    <span className="eyebrow">{t("CACHE HIT RATIO")}</span>
                     <h2>{percent(cache)}</h2>
-                    <span className="quality">{quality}</span>
-                    <p>Weighted by input tokens across the selected period.</p>
+                    <span className="quality">{t(quality)}</span>
+                    <p>
+                      {t(
+                        "Weighted by input tokens across the selected period.",
+                      )}
+                    </p>
                   </div>
                   <div>
-                    <Stat label="Cached input / saved input tokens">
+                    <Stat label={t("Cached input / saved input tokens")}>
                       {count(a.tokens.cached_input_tokens)}
                     </Stat>
-                    <Stat label="Fresh input">
+                    <Stat label={t("Fresh input")}>
                       {count(a.tokens.uncached_input_tokens)}
                     </Stat>
                     <Stat
-                      label="Cache value saved"
-                      note="Additional base-rate API equivalent without cache hits"
+                      label={t("Cache value saved")}
+                      note={t(
+                        "Additional base-rate API equivalent without cache hits",
+                      )}
                     >
-                      {m.priced_tokens === 0 && m.unpriced_tokens > 0
-                        ? "Unpriced"
-                        : usd(m.cache_savings_usd)}
+                      {t(
+                        m.priced_tokens === 0 && m.unpriced_tokens > 0
+                          ? "Unpriced"
+                          : usd(m.cache_savings_usd),
+                      )}
                     </Stat>
                   </div>
                 </div>
                 <div className="period-cache">
                   {["today", "5h", "week", "month", "all"].map((p) => (
                     <section key={p} className="panel">
-                      <span>{periods.find(([id]) => id === p)?.[1]}</span>
+                      <span>{t(periods.find(([id]) => id === p)?.[1])}</span>
                       <strong>{percent(ratio(r.periods[p]))}</strong>
                     </section>
                   ))}
                 </div>
                 <section className="panel">
-                  <h2>Cache trend</h2>
+                  <h2>{t("Cache trend")}</h2>
                   <Trend points={r.trend} mode={mode} metric="cache" />
                 </section>
                 <section className="panel">
-                  <h2>Cache by session</h2>
+                  <h2>{t("Cache by session")}</h2>
                   <SessionTable
                     rows={r.sessions}
                     tz={s.timezone}
@@ -1356,41 +1500,46 @@ export default function App() {
                 <div className="two-col">
                   <section className="panel equivalent">
                     <div className="card-top">
-                      <h2>API equivalent value</h2>
+                      <h2>{t("API equivalent value")}</h2>
                       <Badge status="ESTIMATED" />
                     </div>
                     <strong>{usd(value(m))}</strong>
                     <p>
-                      {mode === "codex_work"
-                        ? "Codex / Work Rate-Card Equivalent"
-                        : "Public API Equivalent"}
+                      {t(
+                        mode === "codex_work"
+                          ? "Codex / Work Rate-Card Equivalent"
+                          : "Public API Equivalent",
+                      )}
                     </p>
                     <select
-                      aria-label="Pricing basis"
+                      aria-label={t("Pricing basis")}
                       value={mode}
                       onChange={(e) =>
                         save({ ...s, pricing_mode: e.target.value })
                       }
                     >
-                      <option value="public_api">Public API Equivalent</option>
+                      <option value="public_api">
+                        {t("Public API Equivalent")}
+                      </option>
                       <option value="codex_work">
-                        Codex / Work Rate-Card Equivalent
+                        {t("Codex / Work Rate-Card Equivalent")}{" "}
                       </option>
                     </select>
-                    <p className="muted">{priceNote}</p>
+                    <p className="muted">{t(priceNote)}</p>
                   </section>
                   <section className="panel">
-                    <h2>Pricing coverage</h2>
+                    <h2>{t("Pricing coverage")}</h2>
                     <div className="coverage-number">
                       {percent(coverage(m))}
                     </div>
                     <p>
-                      {count(m.priced_tokens)} priced tokens ·{" "}
-                      {count(m.unpriced_tokens)} unpriced
+                      {count(m.priced_tokens)} {t("priced tokens ·")}{" "}
+                      {count(m.unpriced_tokens)} {t("unpriced")}{" "}
                     </p>
                     <p className="muted">
-                      Unknown models stay unpriced until you explicitly assign
-                      an alias or custom rate.
+                      {t(
+                        "Unknown models stay unpriced until you explicitly assign an alias or custom rate.",
+                      )}{" "}
                     </p>
                     {r.models
                       .filter(
@@ -1403,59 +1552,66 @@ export default function App() {
                         </div>
                       ))}
                     <button onClick={() => setTab("settings")}>
-                      Manage model rates
+                      {t("Manage model rates")}{" "}
                     </button>
                   </section>
                 </div>
                 <section className="panel">
-                  <h2>Subscription comparison</h2>
+                  <h2>{t("Subscription comparison")}</h2>
                   {s.monthly_subscription_cost ? (
                     <>
                       <div className="token-strip">
-                        <Stat label="Monthly subscription">
+                        <Stat label={t("Monthly subscription")}>
                           {usd(s.monthly_subscription_cost)}
                         </Stat>
-                        <Stat label="This month equivalent">
+                        <Stat label={t("This month equivalent")}>
                           {usd(monthValue)}
                         </Stat>
-                        <Stat label="Equivalent Value Multiple">
-                          {monthValue == null
-                            ? "—"
-                            : `${(monthValue / s.monthly_subscription_cost).toFixed(2)}×`}
+                        <Stat label={t("Equivalent Value Multiple")}>
+                          {t(
+                            monthValue == null
+                              ? "—"
+                              : `${(monthValue / s.monthly_subscription_cost).toFixed(2)}×`,
+                          )}
                         </Stat>
-                        <Stat label="Break-even progress">
-                          {monthValue == null
-                            ? "—"
-                            : `${((monthValue / s.monthly_subscription_cost) * 100).toFixed(0)}%`}
+                        <Stat label={t("Break-even progress")}>
+                          {t(
+                            monthValue == null
+                              ? "—"
+                              : `${((monthValue / s.monthly_subscription_cost) * 100).toFixed(0)}%`,
+                          )}
                         </Stat>
                       </div>
                       <small>
-                        Based on the priced portion of this month’s local logs.
+                        {t(
+                          "Based on the priced portion of this month’s local logs.",
+                        )}{" "}
                       </small>
                     </>
                   ) : (
                     <p className="muted">
-                      Enter your monthly subscription cost in Settings to enable
-                      this optional comparison.
+                      {t(
+                        "Enter your monthly subscription cost in Settings to enable this optional comparison.",
+                      )}{" "}
                     </p>
                   )}
                 </section>
                 <section className="panel">
                   <div className="section-heading">
-                    <h2>Verified rate catalog</h2>
+                    <h2>{t("Verified rate catalog")}</h2>
                     <span className="muted">
-                      USD / 1M tokens · verified {r.catalog.verified_at}
+                      {t("USD / 1M tokens · verified")} {r.catalog.verified_at}
                     </span>
                   </div>
                   <div className="table-wrap">
                     <table>
                       <thead>
                         <tr>
-                          <th>Model</th>
-                          <th>Input</th>
-                          <th>Cached</th>
-                          <th>Output</th>
-                          <th>Source / verified</th>
+                          <th>{t("Model")}</th>
+                          <th>{t("Input")}</th>
+                          <th>{t("Cached")}</th>
+                          <th>{t("Output")}</th>
+                          <th>{t("Source / verified")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1473,7 +1629,7 @@ export default function App() {
                                   target="_blank"
                                   rel="noreferrer"
                                 >
-                                  Official source
+                                  {t("Official source")}{" "}
                                 </a>
                                 <small>{p.verified_at}</small>
                               </td>
@@ -1483,12 +1639,12 @@ export default function App() {
                     </table>
                   </div>
                   <p className="muted">
-                    Current catalog rates are applied to selected history.
-                    Promotional rates, historical price changes, cache writes
-                    and service adjustments may differ.
+                    {t(
+                      "Current catalog rates are applied to selected history. Promotional rates, historical price changes, cache writes and service adjustments may differ.",
+                    )}{" "}
                   </p>
                   <label className="catalog-import">
-                    Import an updated pricing_catalog.json
+                    {t("Import an updated pricing_catalog.json")}{" "}
                     <input
                       type="file"
                       accept=".json,application/json"
@@ -1514,7 +1670,7 @@ export default function App() {
               <>
                 <section className="panel">
                   <div className="section-heading">
-                    <h2>Local data pipeline</h2>
+                    <h2>{t("Local data pipeline")}</h2>
                     <Badge status="LOCAL" />
                   </div>
                   <div className="diagnostic-grid">
@@ -1546,38 +1702,38 @@ export default function App() {
                     ))}
                   </div>
                   <div className="key-row">
-                    <span>Local source</span>
+                    <span>{t("Local source")}</span>
                     <code>~/.codex/sessions + archived_sessions</code>
                   </div>
                   <div className="key-row">
-                    <span>Last ingest</span>
+                    <span>{t("Last ingest")}</span>
                     <span>
                       {date(r.diagnostics.last_local_update, s.timezone)}
                     </span>
                   </div>
                   <div className="key-row">
-                    <span>Account source</span>
-                    <span>{q.meta.source}</span>
+                    <span>{t("Account source")}</span>
+                    <span>{t(q.meta.source)}</span>
                   </div>
                   <div className="key-row">
-                    <span>Last successful quota read</span>
+                    <span>{t("Last successful quota read")}</span>
                     <span>
                       {date(q.meta.updated_at, s.timezone)} ·{" "}
                       {q.latency_ms ?? "—"} ms
                     </span>
                   </div>
                   <div className="key-row">
-                    <span>Next quota attempt</span>
+                    <span>{t("Next quota attempt")}</span>
                     <span>{date(q.next_attempt_at, s.timezone)}</span>
                   </div>
                   <p className="muted">
-                    Files are read incrementally. Oversized body lines are
-                    excluded from metadata storage. Parser errors remain visible
-                    here.
+                    {t(
+                      "Files are read incrementally. Oversized body lines are excluded from metadata storage. Parser errors remain visible here.",
+                    )}{" "}
                   </p>
                 </section>
                 <section className="panel">
-                  <h2>Official account buckets</h2>
+                  <h2>{t("Official account buckets")}</h2>
                   {q.buckets.map((b) => (
                     <div className="bucket" key={b.id}>
                       <h3>{b.name || b.id}</h3>
@@ -1586,53 +1742,60 @@ export default function App() {
                         .map((w, i) => (
                           <div className="key-row" key={i}>
                             <span>
-                              {w.window_minutes ?? "Unknown"} minute window
+                              {w.window_minutes ?? t("Unknown")}{" "}
+                              {t("minute window")}{" "}
                             </span>
                             <b>
-                              {w.used_percent}% used · {w.remaining_percent}%
-                              remaining · {date(w.resets_at, s.timezone)}
+                              {w.used_percent}
+                              {t("% used ·")} {w.remaining_percent}
+                              {t("% remaining ·")}{" "}
+                              {date(w.resets_at, s.timezone)}
                             </b>
                           </div>
                         ))}
                     </div>
                   ))}
                   <div className="key-row">
-                    <span>Credit balance reported</span>
+                    <span>{t("Credit balance reported")}</span>
                     <span>
-                      {q.credits?.balance ?? "Unavailable"}{" "}
-                      {q.credits?.unlimited ? "(unlimited)" : ""}
+                      {t(q.credits?.balance ?? "Unavailable")}{" "}
+                      {t(q.credits?.unlimited ? "(unlimited)" : "")}
                     </span>
                   </div>
                   <div className="key-row">
-                    <span>Reset credits</span>
+                    <span>{t("Reset credits")}</span>
                     <span>
-                      {q.reset_credits?.available_count ?? "Unavailable"}
+                      {q.reset_credits?.available_count ?? t("Unavailable")}
                     </span>
                   </div>
                   {q.reset_credits?.details?.map((c, i) => (
                     <div key={i} className="key-row">
                       <span>
-                        {c.title || "Reset credit"} · {c.status || "Unknown"}
+                        {t(c.title || "Reset credit")} ·{" "}
+                        {t(c.status || "Unknown")}
                       </span>
                       <span>
-                        Granted {date(c.granted_at, s.timezone)} · Expires{" "}
-                        {date(c.expires_at, s.timezone)}
+                        {t("Granted")} {date(c.granted_at, s.timezone)}{" "}
+                        {t("· Expires")} {date(c.expires_at, s.timezone)}
                       </span>
                     </div>
                   ))}
                   <details>
                     <summary>
-                      Separate official account usage summary{" "}
+                      {t("Separate official account usage summary")}{" "}
                       <Badge status={q.usage_status} />
                     </summary>
                     <p className="muted">
-                      Account-wide totals are separate from the local Token
-                      accounting above.
+                      {t(
+                        "Account-wide totals are separate from the local Token accounting above.",
+                      )}{" "}
                     </p>
                     <pre>
-                      {q.usage
-                        ? JSON.stringify(q.usage, null, 2)
-                        : "Unavailable"}
+                      {t(
+                        q.usage
+                          ? JSON.stringify(q.usage, null, 2)
+                          : "Unavailable",
+                      )}
                     </pre>
                   </details>
                 </section>
@@ -1640,22 +1803,24 @@ export default function App() {
             )}
             <section className="export-bar">
               <div>
-                <h3>Take your data with you</h3>
-                <span className="muted">Local reports, metadata only.</span>
+                <h3>{t("Take your data with you")}</h3>
+                <span className="muted">
+                  {t("Local reports, metadata only.")}
+                </span>
               </div>
               <div className="export-actions">
                 <select
-                  aria-label="Export dataset"
+                  aria-label={t("Export dataset")}
                   value={dataset}
                   onChange={(e) => setDataset(e.target.value)}
                 >
-                  <option value="daily">Daily usage</option>
-                  <option value="models">Model usage</option>
-                  <option value="sessions">Session usage</option>
-                  <option value="quota">Quota history</option>
+                  <option value="daily">{t("Daily usage")}</option>
+                  <option value="models">{t("Model usage")}</option>
+                  <option value="sessions">{t("Session usage")}</option>
+                  <option value="quota">{t("Quota history")}</option>
                 </select>
                 <select
-                  aria-label="Export format"
+                  aria-label={t("Export format")}
                   value={format}
                   onChange={(e) => setFormat(e.target.value)}
                 >
@@ -1671,35 +1836,37 @@ export default function App() {
                         format,
                         dataset,
                       });
-                      setToast(`Report saved: ${path}`);
+                      setToast(t("Report saved: {path}", { path: path }));
                     } catch (e) {
                       setToast(String(e));
                     }
                   }}
                 >
-                  Export report
+                  {t("Export report")}{" "}
                 </button>
                 <button
                   onClick={() =>
                     call("open_exports").catch((e) => setToast(String(e)))
                   }
                 >
-                  Show files
+                  {t("Show files")}{" "}
                 </button>
               </div>
             </section>
           </>
         )}
         <footer className="page-footer">
-          <span>Local first · Read only · No telemetry</span>
+          <span>{t("Local first · Read only · No telemetry")}</span>
           <span>
-            Independent open-source project. Not affiliated with OpenAI.
+            {t(
+              "Independent open-source project. Not affiliated with OpenAI.",
+            )}{" "}
           </span>
         </footer>
       </main>
       {toast && (
         <div className="toast" role="status" onClick={() => setToast("")}>
-          {toast}
+          {t(toast)}
         </div>
       )}
       {detailOpen && (

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub language: String,
     pub timezone: String,
     pub quota_poll_seconds: u64,
     pub tray_metric: String,
@@ -19,6 +20,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            language: "zh-CN".into(),
             timezone: iana_time_zone::get_timezone().unwrap_or("UTC".into()),
             quota_poll_seconds: 90,
             tray_metric: "weekly".into(),
@@ -34,6 +36,10 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            matches!(self.language.as_str(), "en" | "zh-CN"),
+            "Choose English or Simplified Chinese"
+        );
         self.timezone
             .parse::<chrono_tz::Tz>()
             .map_err(|_| anyhow::anyhow!("Use an IANA time zone, e.g. America/New_York"))?;

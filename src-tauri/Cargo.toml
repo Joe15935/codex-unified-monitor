@@ -1,6 +1,6 @@
 [package]
 name = "codex-unified-monitor"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local-first Codex usage and quota monitor"
 authors = ["Codex Unified Monitor contributors"]
 license = "MIT"

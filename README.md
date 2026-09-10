@@ -1,8 +1,10 @@
 # Codex Unified Monitor
 
+**English** · [简体中文](README.zh-CN.md)
+
 A local macOS menu bar app for Codex quota, token accounting, cache health, and estimated API equivalent value. One Tauri 2 application, one SQLite index, and one persistent official Codex app-server child. No Electron, Python, web server, telemetry, or cloud sync in the shipped app.
 
-**[Download v0.2.0 with Tier Auditor (preview)](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.0)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
+**[Download bilingual v0.2.1 with Tier Auditor (preview)](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.1)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
 
 **Auditor preview:** Native startup, the audit page and three-format evidence export passed on the acceptance Mac. The classification method still needs independent, controlled field observations; see [TEST_REPORT.md](TEST_REPORT.md). The [previous stable release](https://github.com/Joe15935/codex-unified-monitor/releases/latest) remains available.
 
@@ -10,7 +12,13 @@ A local macOS menu bar app for Codex quota, token accounting, cache health, and 
 
 Download the `.dmg` or `.app.zip`, then place **Codex Unified Monitor.app** in `/Applications`. Requires macOS 12+ on Apple Silicon. Sign in using the official Codex CLI or ChatGPT/Codex desktop app first; this app never asks for your credentials. Open the app, then click its menu bar icon for the compact panel. Closing the dashboard keeps monitoring active. Quit from the compact panel or tray menu.
 
-Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to approve this downloaded app in Privacy & Security. Do not disable Gatekeeper globally. Source builds are also supported. Intel binaries are not provided in v0.2.0.
+Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to approve this downloaded app in Privacy & Security. Do not disable Gatekeeper globally. Source builds are also supported. Intel binaries are not provided in v0.2.1.
+
+## Language
+
+Choose **中文 / English** at the top of the dashboard, in Settings, or in the compact panel. Chinese is the default. The choice is saved locally and survives restart; the dashboard, compact panel, tray menu and newly generated HTML reports follow it. Switching language does not change prices, token counts, quota readings or audit controls.
+
+Dates and compact numbers follow the selected language; the configured time zone remains the same. Model identifiers, protocol values and user-entered names remain original. JSON and CSV keep stable English field names and machine-readable values, so evidence checksums, baseline imports and existing integrations remain compatible. Unrecognized external error messages are preserved verbatim. See [LOCALIZATION.md](LOCALIZATION.md) for contributors.
 
 ## What it shows
 
@@ -21,6 +29,7 @@ Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to ap
 - Two separate pricing catalogs: Public API and Codex / Work. Unknown models stay UNPRICED. Custom aliases and rates are explicit settings.
 - Observed quota burn and efficiency after at least four samples over 30 minutes with a measurable change; optional subscription equivalent value multiple.
 - Local CSV, JSON and standalone HTML exports. Launch at Login is optional.
+- Chinese and English interface, tray labels and HTML reports, with a persistent language switch.
 
 **API equivalent value is an estimate, not your subscription bill or OpenAI's cost.** Current base prices are applied to recorded token counts; historical prices, request-level long-context adjustments, cache writes and service tiers are not reconstructed. See [PRICING.md](PRICING.md).
 
@@ -54,7 +63,7 @@ The data CLI reads real local metadata. Its output and exports are private; do n
 
 Reads `CODEX_HOME/sessions` and `CODEX_HOME/archived_sessions`, defaulting to `~/.codex`. Own metadata database: `~/Library/Application Support/Codex Unified Monitor/monitor.sqlite3`. Settings → Disconnect account stops only this component's provider; it does not sign you out of official Codex. Disable Launch at Login before uninstalling. Removing this app and its own data folder does not alter Codex sessions or authentication.
 
-English UI in v0.2.0. 中文说明：这是一个本地优先、只读、无遥测的 Codex 菜单栏组件。额度来自官方接口，Token 来自本机日志，美元数字是 API 等价估值。没有提供的五小时额度或模型价格会明确标记，不会编造为零。下载页面提供可直接安装的 Apple Silicon 应用。
+For the Chinese installation guide, feature explanation and audit workflow, see [简体中文说明](README.zh-CN.md) and [套餐额度审计](AUDITOR.zh-CN.md).
 
 ## Reuse and license
 

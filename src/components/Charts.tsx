@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type { Point } from "../types";
 import { count, money, value, ratio, percent, usd } from "../data";
 // TokenGlyph and stacked-column structure adapted from CodexScope / HduSy tokenscope, MIT.
@@ -51,7 +52,9 @@ export function Trend({
   metric?: string;
 }) {
   if (!points.length)
-    return <div className="empty-chart">No token events in this period.</div>;
+    return (
+      <div className="empty-chart">{t("No token events in this period.")}</div>
+    );
   const n = (p: Point) =>
     metric === "value"
       ? (value(money(p.aggregate, mode)) ?? 0)
@@ -65,11 +68,14 @@ export function Trend({
     <div
       className="chart"
       role="img"
-      aria-label={`${metric} trend across ${points.length} recorded time buckets`}
+      aria-label={t("{metric} trend across {count} recorded time buckets", {
+        metric: t(metric),
+        count: points.length,
+      })}
     >
       <div className="chart-scale">
-        <span>{label(max)}</span>
-        <span>{label(max / 2)}</span>
+        <span>{t(label(max))}</span>
+        <span>{t(label(max / 2))}</span>
         <span>0</span>
       </div>
       <div className="chart-body">
@@ -81,10 +87,18 @@ export function Trend({
         <div className="columns">
           {points.map((p) => {
             const a = p.aggregate;
-            const t = a.tokens;
+            const tokens = a.tokens;
             const total = n(p);
             const stack = metric === "tokens";
-            const title = `${p.label}\n${count(t.total_tokens)} tokens · ${percent(ratio(a))} cache hit\nAPI equivalent ${usd(value(money(a, mode)))}`;
+            const title = t(
+              "{date}: {tokens} tokens · {cache} cache hit · API equivalent {value}",
+              {
+                date: p.label,
+                tokens: count(tokens.total_tokens),
+                cache: percent(ratio(a)),
+                value: usd(value(money(a, mode))),
+              },
+            );
             return (
               <button
                 key={p.timestamp}
@@ -97,14 +111,14 @@ export function Trend({
               >
                 {stack ? (
                   <>
-                    <i className="out" style={{ flex: t.output_tokens }} />
+                    <i className="out" style={{ flex: tokens.output_tokens }} />
                     <i
                       className="cached"
-                      style={{ flex: t.cached_input_tokens }}
+                      style={{ flex: tokens.cached_input_tokens }}
                     />
                     <i
                       className="fresh"
-                      style={{ flex: t.uncached_input_tokens }}
+                      style={{ flex: tokens.uncached_input_tokens }}
                     />
                   </>
                 ) : (
@@ -118,9 +132,9 @@ export function Trend({
           })}
         </div>
         <div className="chart-labels">
-          <span>{points[0].label}</span>
-          <span>{points[Math.floor(points.length / 2)].label}</span>
-          <span>{points[points.length - 1]?.label}</span>
+          <span>{t(points[0].label)}</span>
+          <span>{t(points[Math.floor(points.length / 2)].label)}</span>
+          <span>{t(points[points.length - 1]?.label)}</span>
         </div>
       </div>
     </div>
