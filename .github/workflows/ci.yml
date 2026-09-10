@@ -1,0 +1,41 @@
+name: Verify source and macOS app
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: rustup default stable
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: cargo fmt --manifest-path crates/core/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: rustup default stable
+      - run: rustup target add aarch64-apple-darwin
+      - run: npm ci
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --test watcher
+      - run: npm run package -- --target aarch64-apple-darwin --bundles app
+      - run: ditto -c -k --keepParent 'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Codex Unified Monitor.app' Codex-Unified-Monitor-arm64.app.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Codex-Unified-Monitor-arm64
+          path: Codex-Unified-Monitor-arm64.app.zip

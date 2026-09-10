@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Local monitor windows only; no remote origins, filesystem or shell APIs exposed to the webview",
+  "windows": ["main", "compact"],
+  "permissions": ["core:default"]
+}

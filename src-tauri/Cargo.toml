@@ -1,0 +1,33 @@
+[package]
+name = "codex-unified-monitor"
+version = "0.1.0"
+description = "Local-first Codex usage and quota monitor"
+authors = ["Codex Unified Monitor contributors"]
+license = "MIT"
+repository = "https://github.com/Joe15935/codex-unified-monitor"
+edition = "2021"
+
+[lib]
+name = "codex_unified_monitor_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+codexmeter-core = { path = "../crates/core" }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = { version = "6", default-features = false, features = ["macos_kqueue"] }
+chrono = "0.4"
+chrono-tz = "0.10"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

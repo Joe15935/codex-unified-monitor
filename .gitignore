@@ -1,0 +1,16 @@
+node_modules/
+dist/
+target/
+.DS_Store
+*.db
+*.db-*
+*.sqlite*
+*.jsonl
+.env*
+private/
+exports/
+release/
+test-results/
+playwright-report/
+public/dev-*.json
+*.log

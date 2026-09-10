@@ -1,0 +1,30 @@
+{
+  "name": "codex-unified-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "tauri": "tauri",
+    "test": "cargo test --manifest-path crates/core/Cargo.toml",
+    "data": "cargo run --manifest-path crates/core/Cargo.toml --bin codexmeter-data --",
+    "package": "node scripts/build-macos.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "latest",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.2"
+  }
+}

@@ -1,0 +1,20 @@
+CodexScope is an adaptation of Tokenscope:
+
+  https://github.com/HduSy/tokenscope
+
+The original project is Copyright (c) 2026 HduSy and is licensed under the
+MIT License. The original MIT license text and copyright notice are preserved
+in LICENSE.
+
+This adaptation changes the product target from Claude CLI usage to Codex
+usage. Major changes include:
+
+- reading Codex rollout logs from ~/.codex/sessions and archived_sessions
+- aggregating Codex token_count events by day, week, month, model, and tool
+- estimating API value from public model pricing
+- reading Codex app-server account usage and rate-limit summaries
+- displaying available manual reset credits and earliest available credit expiry
+- adding Codex-oriented profile stats, theme switching, screenshot capture,
+  and macOS multi-monitor / notched-display popover positioning fixes
+
+CodexScope is distributed under the same MIT License terms.
