@@ -84,3 +84,12 @@ Implementation and release candidate date: 2026-09-10. This section supersedes v
 - Audit HTML/JSON/CSV renderers passed data, escaping, integrity and privacy checks. Browser rendering of exported local HTML and native export-button acceptance remain NOT_TESTED. The exported report is never substituted for the independently tested audit page.
 
 Release status: preview until native startup acceptance is completed. Missing Pro 5x reference and insufficient controlled observations are expected INCONCLUSIVE conditions, not inferred entitlement findings. No Apple notarization or Intel build is added by this release.
+
+
+### v0.2.0 public build verification
+
+[GitHub Actions 34460097368](https://github.com/Joe15935/codex-unified-monitor/actions/runs/34460097368): Linux checks and macOS build both SUCCESS for code commit `823a5a2e56776d392e74000927030de30e8b423c`. Later edits to this acceptance record do not change application code. The final installed-on-disk binary matches the packaged binary; the previously running v0.1.0 process remains a separate native restart gate.
+
+Release ZIP SHA256: `13bfa20be4a10c115059708c291942fc27da38ca808350596d9f2350334018c4`.
+Release DMG SHA256: `cb7e220c26112bd7217d82f7e9be112d4f4b3a2c193eeb2d6c4c93d4ffb1d72c`.
+Ad-hoc signature and DMG filesystem integrity checks PASS. Packaged scan found no real logs, database, authentication files or build-user home path.
