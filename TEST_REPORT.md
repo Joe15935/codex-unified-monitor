@@ -113,3 +113,5 @@ Executed on 2026-09-10. Application code: `008c6f162be9de53de631b15dfab8f1a8533c
 Final ZIP SHA256: `1f92b1d2dfe57a27cf6cfc57e0a6d93fa51497cc0a324396821c6d1b8418ebf8`.
 Final DMG SHA256: `16867ac42acf7db88a074b3270fe19d2fc9ffdb7812f87c4bdab8ed81094e6be`.
 Ad-hoc signature and DMG filesystem integrity PASS. Apple notarization, Intel binaries and longitudinal field validation of tier classification remain outside this release. Unknown external errors keep their original text; canonical JSON/CSV fields remain English for compatibility.
+
+Public [v0.2.1 release](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.1) verification: unauthenticated ZIP and DMG downloads both returned HTTP 200 and matched the final SHA256 values above. The repository and release are public; the release is marked preview because tier classification still requires longitudinal field validation.
