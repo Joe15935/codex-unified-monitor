@@ -28,6 +28,7 @@ import {
   priceNote,
 } from "./data";
 import { TokenGlyph, Trend } from "./components/Charts";
+import TierAuditor from "./components/TierAuditor";
 
 const periods = [
   ["today", "Today"],
@@ -944,6 +945,7 @@ export default function App() {
             ["sessions", "Sessions"],
             ["cache", "Cache health"],
             ["pricing", "API equivalent"],
+            ["auditor", "Tier Auditor"],
             ["diagnostics", "Data health"],
             ["settings", "Settings"],
           ].map(([id, label]) => (
@@ -977,6 +979,7 @@ export default function App() {
                   sessions: "Session analytics",
                   cache: "Cache health",
                   pricing: "API equivalent value",
+                  auditor: "Pro Tier Auditor / 套餐额度审计",
                   diagnostics: "Data health",
                   settings: "Settings",
                 }[tab]
@@ -1034,6 +1037,8 @@ export default function App() {
         )}
         {tab === "settings" ? (
           <Preferences data={data} onSave={save} onToast={setToast} />
+        ) : tab === "auditor" ? (
+          <TierAuditor data={data} onToast={setToast} />
         ) : (
           <>
             {tab === "overview" && (

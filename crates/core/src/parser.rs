@@ -18,6 +18,9 @@ pub struct ParserState {
     pub metadata_seen: bool,
     pub fork_boundary_ms: Option<i64>,
     pub inherited_skipped: u64,
+    pub audit_metadata_version: u8,
+    pub service_tier: Option<String>,
+    pub is_subagent: Option<bool>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
@@ -32,6 +35,10 @@ pub struct Event {
     pub tool: String,
     pub tokens: Tokens,
     pub source: String,
+    #[serde(default)]
+    pub service_tier: Option<String>,
+    #[serde(default)]
+    pub is_subagent: Option<bool>,
 }
 fn s(v: &Value, k: &str) -> String {
     v.get(k).and_then(Value::as_str).unwrap_or("").to_owned()
@@ -58,6 +65,14 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
             return Ok(None);
         }
         state.metadata_seen = true;
+        state.audit_metadata_version = 1;
+        state.is_subagent = match (p["thread_source"].as_str(), &p["source"]) {
+            (_, Value::Object(o)) if o.contains_key("subagent") => Some(true),
+            (Some("subagent"), _) => Some(true),
+            (Some("user"), _) => Some(false),
+            (_, Value::String(s)) if ["cli", "vscode", "exec"].contains(&s.as_str()) => Some(false),
+            _ => None,
+        };
         let id = p["id"]
             .as_str()
             .or(p["session_id"].as_str())
@@ -84,6 +99,8 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
         return Ok(None);
     }
     if typ == "turn_context" {
+        // A missing field in a new turn is unknown, never inherited Fast-off.
+        state.service_tier = p["service_tier"].as_str().map(str::to_owned);
         if let Some(m) = p["model"].as_str() {
             state.model = normalized_model(m);
         }
@@ -91,7 +108,7 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
             .as_str()
             .or(p["reasoning_effort"].as_str())
             .or(p["collaboration_mode"]["settings"]["reasoning_effort"].as_str())
-            .unwrap_or(&state.effort)
+            .unwrap_or("")
             .to_owned();
         if let Some(id) = p["turn_id"].as_str() {
             state.turn_id = id.to_owned();
@@ -227,6 +244,11 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
         kind: kind.into(),
         tool,
         tokens,
+        service_tier: p["service_tier"]
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| state.service_tier.clone()),
+        is_subagent: state.is_subagent,
         source: if token_record {
             "token_usage_record"
         } else {

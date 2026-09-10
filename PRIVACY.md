@@ -11,3 +11,7 @@ Production starts no HTTP server. The development server binds to loopback. The 
 Settings → Disconnect account stops this component's provider; it does not revoke or sign out the official client's shared authentication, because the component has no independent OAuth grant. Reconnect resumes read-only calls. Disable Launch at Login before uninstalling; remove the application and, if desired, its own Application Support folder. Original Codex files and other apps are untouched.
 
 Public source includes synthetic fixtures only. Do not commit real rollout JSONL, SQLite files, private screenshots, account snapshots, environment files, exported reports or tokens. Report security problems privately to the maintainer through the repository's available private reporting mechanism; never include credentials in public issues.
+
+## Tier Auditor evidence
+
+Auditor reports omit account/email, original session/response IDs, project paths, prompts and tool payloads. Export origin IDs are random per-account local pseudonyms; workload labels are report-local ordinals. Reports retain model, reasoning, token counters, UTC timestamps and public price citations for auditability. JSON checksums prove integrity only, not account entitlement or source authenticity. Import citations are not fetched. Reports stay local until the user shares them.

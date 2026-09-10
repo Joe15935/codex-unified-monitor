@@ -27,3 +27,7 @@ Moves, archives, copies, process restarts and unchanged rescans preserve identit
 Today, week (Monday), month, year and custom dates use an IANA timezone and actual calendar midnights, including 23/25-hour DST days. Five hours, 30 days and 90 days are rolling intervals. Custom end dates are inclusive. A session's counters match the selected range; its start is the observed session metadata start.
 
 Burn/efficiency needs >=4 successful samples, >=30 minutes, >=1 percentage point increase, a fresh last sample, and a single account/reset window with monotonically increasing usage. Reset crossings and stale samples stop an estimate. Quota is account-wide while token logs are local; observed efficiency is correlation, not an official billing rule. Exhaustion forecasts say when the quota window would reset first.
+
+## Tier Auditor
+
+Audit intervals use `(start, end]` and the same canonical counters. Unchanged polls are carried forward to the next change. Whole mixed-model intervals are excluded rather than pairing filtered tokens with account-wide quota. Controls, quality gates, quantization assumptions and limits are defined in AUDITOR.md.

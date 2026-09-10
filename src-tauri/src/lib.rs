@@ -3,6 +3,7 @@ mod worker;
 use codexmeter_core::{
     account::{self, Quota},
     analytics::{self, Range},
+    auditor,
     pricing::Catalog,
     settings::Settings,
     storage::Store,
@@ -53,7 +54,7 @@ async fn dashboard(app: tauri::AppHandle, range: Option<Range>) -> Result<Value,
   let state=local.lock().map_err(|_|"Local status unavailable")?;r.diagnostics.scan_status=state.0.clone();r.diagnostics.last_local_update=state.1;r.meta.updated_at=state.1;
   let history=account::history(&store,&q.account_key).map_err(|e|e.to_string())?;
   let five=analytics::burn(&history,"5h",&store,&c,&settings).map_err(|e|e.to_string())?;let week=analytics::burn(&history,"week",&store,&c,&settings).map_err(|e|e.to_string())?;
-  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":"0.1.0"}))
+  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":"0.2.0"}))
  }).await.map_err(|e|e.to_string())?
 }
 #[tauri::command]
@@ -212,6 +213,119 @@ fn import_catalog(app: tauri::AppHandle, text: String) -> Result<(), String> {
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
 }
 #[tauri::command]
+async fn audit_report(app: tauri::AppHandle) -> Result<auditor::View, String> {
+    let state = app.state::<AppState>();
+    let store = state.store.clone();
+    let quota = state.quota.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store.lock().map_err(|_| "Database lock unavailable")?;
+        let q = quota.lock().map_err(|_| "Quota lock unavailable")?.clone();
+        let s = Settings::load(&store).map_err(|e| e.to_string())?;
+        auditor::report(&store, &catalog(&store), &s, &q, codexmeter_core::now())
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn start_audit(app: tauri::AppHandle, controls: auditor::Controls) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let store = state
+        .store
+        .lock()
+        .map_err(|_| "Database lock unavailable")?;
+    let quota = state
+        .quota
+        .lock()
+        .map_err(|_| "Quota lock unavailable")?
+        .clone();
+    let settings = Settings::load(&store).map_err(|e| e.to_string())?;
+    auditor::start(
+        &store,
+        &quota,
+        &catalog(&store),
+        &settings,
+        controls,
+        codexmeter_core::now(),
+    )
+    .map_err(|e| e.to_string())?;
+    app.emit("monitor-updated", ()).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn stop_audit(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let store = state
+        .store
+        .lock()
+        .map_err(|_| "Database lock unavailable")?;
+    auditor::stop(&store, codexmeter_core::now()).map_err(|e| e.to_string())?;
+    app.emit("monitor-updated", ()).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn import_audit_baseline(
+    app: tauri::AppHandle,
+    text: String,
+    source: String,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let store = state
+        .store
+        .lock()
+        .map_err(|_| "Database lock unavailable")?;
+    let q = state
+        .quota
+        .lock()
+        .map_err(|_| "Quota lock unavailable")?
+        .clone();
+    let s = Settings::load(&store).map_err(|e| e.to_string())?;
+    let view = auditor::report(&store, &catalog(&store), &s, &q, codexmeter_core::now())
+        .map_err(|e| e.to_string())?;
+    auditor::import_baseline(
+        &store,
+        &text,
+        &source,
+        &view.evidence.origin_id,
+        codexmeter_core::now(),
+    )
+    .map_err(|e| e.to_string())?;
+    app.emit("monitor-updated", ()).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn clear_audit_baseline(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let store = state
+        .store
+        .lock()
+        .map_err(|_| "Database lock unavailable")?;
+    auditor::clear_baseline(&store).map_err(|e| e.to_string())?;
+    app.emit("monitor-updated", ()).map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn export_audit(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let view = audit_report(app).await?;
+    let dir = codexmeter_core::data_dir().join("exports");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%S%6f").to_string();
+    let mut paths = Vec::new();
+    for format in ["json", "html", "csv"] {
+        let content = auditor::render(&view.evidence, format).map_err(|e| e.to_string())?;
+        let path = dir.join(format!("tier-audit-{stamp}.{format}"));
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut file = opts.open(&path).map_err(|e| e.to_string())?;
+        use std::io::Write;
+        file.write_all(content.as_bytes())
+            .map_err(|e| e.to_string())?;
+        paths.push(path.to_string_lossy().to_string());
+    }
+    Ok(paths)
+}
+#[tauri::command]
 fn quit(app: tauri::AppHandle) {
     let _ = app.state::<AppState>().tx.send(Message::Quit);
     app.exit(0);
@@ -282,6 +396,12 @@ pub fn run() {
             export_report,
             open_exports,
             import_catalog,
+            audit_report,
+            start_audit,
+            stop_audit,
+            import_audit_baseline,
+            clear_audit_baseline,
+            export_audit,
             quit
         ])
         .build(tauri::generate_context!())

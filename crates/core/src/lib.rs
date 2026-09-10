@@ -1,6 +1,7 @@
 pub mod account;
 pub mod accounting;
 pub mod analytics;
+pub mod auditor;
 pub mod export;
 pub mod ingest;
 pub mod parser;

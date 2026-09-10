@@ -18,7 +18,7 @@ impl Store {
             "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;",
         )?;
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        anyhow::ensure!(version <= 2, "database_newer_than_app");
+        anyhow::ensure!(version <= 3, "database_newer_than_app");
         if version == 0 {
             conn.execute_batch("BEGIN;
               CREATE TABLE sessions(id TEXT PRIMARY KEY, project TEXT NOT NULL, started_at INTEGER NOT NULL);
@@ -42,6 +42,15 @@ impl Store {
                 PRAGMA user_version=2; COMMIT;",
             )?;
         }
+        if version < 3 {
+            // Additive migration: existing counters, file offsets and history survive.
+            conn.execute_batch("BEGIN;
+              ALTER TABLE events ADD COLUMN service_tier TEXT;
+              ALTER TABLE events ADD COLUMN is_subagent INTEGER;
+              CREATE TABLE audit_runs(id INTEGER PRIMARY KEY,account_key TEXT NOT NULL,started_at INTEGER NOT NULL,ended_at INTEGER,config TEXT NOT NULL);
+              CREATE TABLE audit_origins(account_key TEXT PRIMARY KEY,origin TEXT NOT NULL);
+              PRAGMA user_version=3; COMMIT;")?;
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -58,7 +67,7 @@ impl Store {
         Ok(events)
     }
     pub fn visit_events(&self, start: i64, end: i64, mut visit: impl FnMut(Event)) -> Result<()> {
-        let mut stmt=self.conn.prepare("SELECT id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source FROM events WHERE timestamp>=? AND timestamp<? ORDER BY timestamp,id")?;
+        let mut stmt=self.conn.prepare("SELECT id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source,service_tier,is_subagent FROM events WHERE timestamp>=? AND timestamp<? ORDER BY timestamp,id")?;
         let rows = stmt.query_map(params![start, end], |r| {
             let raw: u64 = r.get(9)?;
             let cached: u64 = r.get(10)?;
@@ -83,6 +92,8 @@ impl Store {
                     cache_write_input_tokens: r.get(13)?,
                 },
                 source: r.get(14)?,
+                service_tier: r.get(15)?,
+                is_subagent: r.get(16)?,
             })
         })?;
         for row in rows {

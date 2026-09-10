@@ -4,6 +4,8 @@ A local macOS menu bar app for Codex quota, token accounting, cache health, and 
 
 **[Download the Apple Silicon release](https://github.com/Joe15935/codex-unified-monitor/releases/latest)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
 
+**Auditor preview:** [v0.2.0](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.0) adds the Tier Auditor. Native startup acceptance is pending; see [TEST_REPORT.md](TEST_REPORT.md). The existing stable release remains available.
+
 ## Install
 
 Download the `.dmg` or `.app.zip`, then place **Codex Unified Monitor.app** in `/Applications`. Requires macOS 12+ on Apple Silicon. Sign in using the official Codex CLI or ChatGPT/Codex desktop app first; this app never asks for your credentials. Open the app, then click its menu bar icon for the compact panel. Closing the dashboard keeps monitoring active. Quit from the compact panel or tray menu.
@@ -23,6 +25,10 @@ Releases are ad-hoc signed, **not Apple notarized**. macOS may require you to ap
 **API equivalent value is an estimate, not your subscription bill or OpenAI's cost.** Current base prices are applied to recorded token counts; historical prices, request-level long-context adjustments, cache writes and service tiers are not reconstructed. See [PRICING.md](PRICING.md).
 
 A `primary` quota field is not necessarily a five-hour window. Windows are classified by their actual duration. Missing values remain Unavailable. Account failures mark older readings Cached/Stale while local tokens remain accessible.
+
+## Pro Tier Auditor / 套餐额度审计
+
+The new **Tier Auditor** page aligns each observed weekly quota change with local tokens, records controlled observations and frozen prices, compares against a user-supplied independent Pro 5x reference, and exports redacted JSON/HTML/CSV evidence. Missing or incomparable evidence stays **INCONCLUSIVE**. It reports capacity resemblance, never a proven entitlement error. No reference dollar amount is invented, and reports are not sent anywhere automatically. See [AUDITOR.md](AUDITOR.md) for setup, thresholds and limitations.
 
 ## Build from source
 
@@ -48,7 +54,7 @@ The data CLI reads real local metadata. Its output and exports are private; do n
 
 Reads `CODEX_HOME/sessions` and `CODEX_HOME/archived_sessions`, defaulting to `~/.codex`. Own metadata database: `~/Library/Application Support/Codex Unified Monitor/monitor.sqlite3`. Settings → Disconnect account stops only this component's provider; it does not sign you out of official Codex. Disable Launch at Login before uninstalling. Removing this app and its own data folder does not alter Codex sessions or authentication.
 
-English UI in v0.1.0. 中文说明：这是一个本地优先、只读、无遥测的 Codex 菜单栏组件。额度来自官方接口，Token 来自本机日志，美元数字是 API 等价估值。没有提供的五小时额度或模型价格会明确标记，不会编造为零。下载页面提供可直接安装的 Apple Silicon 应用。
+English UI in v0.2.0. 中文说明：这是一个本地优先、只读、无遥测的 Codex 菜单栏组件。额度来自官方接口，Token 来自本机日志，美元数字是 API 等价估值。没有提供的五小时额度或模型价格会明确标记，不会编造为零。下载页面提供可直接安装的 Apple Silicon 应用。
 
 ## Reuse and license
 

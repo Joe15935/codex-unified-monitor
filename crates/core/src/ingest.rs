@@ -170,6 +170,20 @@ fn ingest_file(
     } else {
         serde_json::from_str(&old.state)?
     };
+    if !reset && state.audit_metadata_version == 0 {
+        // Once per upgraded active file, read only its bounded first header.
+        // Do not rebuild old counters or infer historical per-turn Fast settings.
+        let mut header = BufReader::new(File::open(path)?);
+        let (line, bytes, complete, oversized) = bounded_line(&mut header, MAX_LINE)?;
+        result.bytes_read += bytes;
+        let mut metadata = ParserState::default();
+        if complete && !oversized && parser::parse(&line, &mut metadata).is_ok() {
+            if metadata.session_id == state.session_id {
+                state.is_subagent = metadata.is_subagent;
+            }
+        }
+        state.audit_metadata_version = 1;
+    }
     if state.session_id.is_empty() {
         state.session_id = fallback
             .chars()
@@ -212,7 +226,7 @@ fn ingest_file(
                         result.duplicates += 1;
                     }
                     let t = e.tokens;
-                    let changed=tx.execute("INSERT INTO events(id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET response_id=excluded.response_id,source=excluded.source WHERE excluded.source='token_usage_record' AND events.source!='token_usage_record'",params![id,e.response_id,e.session_id,e.timestamp,e.model,e.effort,e.turn_id,e.kind,e.tool,t.raw_input_tokens,t.cached_input_tokens,t.output_tokens,t.reasoning_output_tokens,t.cache_write_input_tokens,e.source])?;
+                    let changed=tx.execute("INSERT INTO events(id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source,service_tier,is_subagent) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET response_id=excluded.response_id,source=excluded.source,service_tier=COALESCE(excluded.service_tier,events.service_tier),is_subagent=COALESCE(excluded.is_subagent,events.is_subagent) WHERE excluded.source='token_usage_record' AND events.source!='token_usage_record'",params![id,e.response_id,e.session_id,e.timestamp,e.model,e.effort,e.turn_id,e.kind,e.tool,t.raw_input_tokens,t.cached_input_tokens,t.output_tokens,t.reasoning_output_tokens,t.cache_write_input_tokens,e.source,e.service_tier,e.is_subagent])?;
                     if existing.is_none() {
                         result.inserted += changed as u64;
                     }

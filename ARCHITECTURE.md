@@ -23,3 +23,7 @@ Quota windows use actual duration, not primary/secondary position. Account ident
 One persisted Settings object controls timezone, polling, tray metric, theme, pricing mode, explicit aliases/rates, thresholds and optional subscription cost. A Tauri LaunchAgent adds only this app's login item when requested. Close hides; Quit stops the worker. The single-instance plugin returns subsequent launches to the existing app.
 
 App CSP restricts scripts to bundled assets and connections to IPC. No remote content or arbitrary shell command is exposed to webview IPC. Exports use fixed datasets, validated formats, escaped text and an app-owned directory. GitHub releases are built from the tagged source and lockfiles. See PRIVACY.md and TEST_REPORT.md for boundaries and observed acceptance.
+
+## Tier Auditor (v0.2.0)
+
+`auditor.rs` aligns successful official snapshots with indexed local events, stores controlled-run declarations and frozen prices, validates imported references and renders redacted reports. Schema v3 is additive over v2. The UI loads audit calculations only on the Tier Auditor page; no provider or background process is added. See AUDITOR.md.

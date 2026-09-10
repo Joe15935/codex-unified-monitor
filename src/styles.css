@@ -15,6 +15,127 @@
   --amber: #8c5a17;
   --shadow: 0 12px 42px #132b2114;
 }
+.auditor {
+  display: grid;
+  gap: 18px;
+}
+.auditor .panel {
+  margin-bottom: 0;
+  min-width: 0;
+}
+.audit-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.audit-plan {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 24px 0;
+}
+.audit-plan strong {
+  display: block;
+  font-size: 22px;
+  margin: 8px 0;
+}
+.audit-plan small {
+  display: block;
+}
+.audit-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.audit-subheading {
+  margin-top: 26px;
+}
+.audit-capacity-number {
+  display: block;
+  font-size: 33px;
+  letter-spacing: -1px;
+  margin: 20px 0 5px;
+}
+.audit-assessment > strong {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+.audit-assessment ul,
+.auditor details ol {
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.audit-signal {
+  border-color: var(--amber);
+}
+.audit-table td {
+  vertical-align: top;
+}
+.audit-table td:first-child small {
+  display: block;
+}
+.audit-table details {
+  min-width: 160px;
+  max-width: 360px;
+  white-space: normal;
+}
+.auditor summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.audit-table details p {
+  font-size: 11px;
+  margin: 8px 0;
+}
+.audit-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.auditor label:not(.check) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+.audit-declarations {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+.audit-declarations .check {
+  align-items: flex-start;
+  line-height: 1.5;
+}
+.audit-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.audit-source {
+  overflow-wrap: anywhere;
+}
+.audit-exported {
+  margin-top: 16px;
+}
+@media (max-width: 1050px) {
+  .audit-columns {
+    grid-template-columns: 1fr;
+  }
+  .audit-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .audit-plan {
+    gap: 12px;
+  }
+  .audit-plan strong {
+    font-size: 18px;
+  }
+}
 * {
   box-sizing: border-box;
 }

@@ -198,7 +198,7 @@ fn schema_migration_preserves_settings_and_quota_history() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("db");
     let s = Store::open(&path).unwrap();
-    s.conn.execute_batch("INSERT INTO settings VALUES('timezone','UTC'); INSERT INTO quota_snapshots VALUES(1,'synthetic','{}'); PRAGMA user_version=1;").unwrap();
+    s.conn.execute_batch("INSERT INTO settings VALUES('timezone','UTC'); INSERT INTO quota_snapshots VALUES(1,'synthetic','{}'); ALTER TABLE events DROP COLUMN service_tier; ALTER TABLE events DROP COLUMN is_subagent; DROP TABLE audit_runs; DROP TABLE audit_origins; PRAGMA user_version=1;").unwrap();
     drop(s);
     let s = Store::open(&path).unwrap();
     let value: String = s

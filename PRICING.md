@@ -20,3 +20,7 @@ Both modes currently share base token rates for the bundled overlapping models b
 Unknown models have no default rate. Reports expose known subtotal, priced and unpriced tokens, and token-weighted coverage; an entirely unpriced nonempty group displays UNPRICED rather than zero. No implicit dated-name stripping or Spark/code-review mapping is applied. Settings permits explicit aliases and custom rates per mode, with validation and provenance. Import a local catalog JSON in Settings to update prices without rebuilding. Imports stay in SQLite and do not overwrite the bundled file.
 
 Monthly subscription cost defaults to unset. With a positive user-supplied amount, `Equivalent Value Multiple = known monthly equivalent / configured monthly subscription`. It remains a partial estimate when pricing coverage is incomplete. Break-even progress describes this same theoretical equivalent value, not financial return.
+
+## Audit price snapshots
+
+Tier Auditor always uses public API base rates, frozen when a controlled observation starts. Later catalog edits do not revalue that observation. Comparisons require the same effective price fingerprint; no built-in Pro 5x dollar capacity is assumed.
