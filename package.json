@@ -1,6 +1,6 @@
 {
   "name": "codex-unified-monitor",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "tauri": "tauri",
     "test": "node --test tests/*.test.mjs && cargo test --manifest-path crates/core/Cargo.toml",
     "data": "cargo run --manifest-path crates/core/Cargo.toml --bin codexmeter-data --",
-    "package": "node scripts/build-macos.mjs"
+    "package": "node scripts/build.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

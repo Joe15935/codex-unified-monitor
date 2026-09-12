@@ -1469,3 +1469,23 @@ details pre {
     animation: none !important;
   }
 }
+
+.quota-insight {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.quota-insight small,
+.quota-insight span {
+  display: block;
+  line-height: 1.6;
+}
+.quota-insight span {
+  color: var(--muted);
+}
+.quota-low {
+  color: var(--amber);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+}

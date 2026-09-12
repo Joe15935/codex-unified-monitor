@@ -12,3 +12,17 @@ Codex Unified Monitor is an independent MIT project. It is not affiliated with o
 Exact upstream license texts are in [licenses/](licenses/), including CodexScope's original NOTICE. They are included in the application bundle. Main direct dependencies are Tauri, React, TypeScript, Vite, serde, serde_json, chrono/chrono-tz, rusqlite/SQLite, sha2, notify, dirs, anyhow and the official Tauri autostart/single-instance plugins. Lockfiles pin the resolved versions; each dependency retains its own license metadata.
 
 OpenAI account data, local session contents and authentication credentials are not included in this repository or release. Public prices are factual data, separately sourced and dated in pricing_catalog.json.
+
+## Additional design and protocol references (v0.3.0)
+
+The [2026-09-12 research record](docs/RESEARCH-2026-09-12.md) adds fixed-revision
+references to [CodexBar](https://github.com/steipete/CodexBar/tree/a998f677dd1fa0c8bfe242e177057e20d57333d9)
+(MIT) for bounded/adaptive refresh and quota presentation, and
+[ccusage](https://github.com/ccusage/ccusage/tree/aaa8992341cbe7ee7a534e662831b2b76c43eda1)
+(MIT root license) for Codex service-tier compatibility. Official record shape and
+per-turn override boundaries were checked against
+[openai/codex](https://github.com/openai/codex/tree/c4017a87aacc7558002b7cb510025e967c1d765e).
+These are research/inspiration and protocol references; the corresponding new
+monitor code was written for this application's existing components. No additional
+upstream application or CLI is bundled, and no source-copy claim is made for these
+new references. The earlier ports and their preserved licenses remain listed above.

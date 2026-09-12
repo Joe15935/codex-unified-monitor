@@ -1,4 +1,4 @@
-name: Verify source and macOS app
+name: Verify source, macOS and Windows apps
 on:
   push:
     branches: [main]
@@ -32,10 +32,58 @@ jobs:
       - run: rustup default stable
       - run: rustup target add aarch64-apple-darwin
       - run: npm ci
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --test watcher
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --tests
       - run: npm run package -- --target aarch64-apple-darwin --bundles app
       - run: ditto -c -k --keepParent 'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Codex Unified Monitor.app' Codex-Unified-Monitor-arm64.app.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Codex-Unified-Monitor-arm64
           path: Codex-Unified-Monitor-arm64.app.zip
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: rustup default stable
+      - run: npm ci
+      - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --tests
+      - run: npm run package -- --target x86_64-pc-windows-msvc --bundles nsis
+      - name: Verify installer and packaged application startup
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'NSIS installer missing' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'Monitor Smoke'
+          $install = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer exit $($install.ExitCode)" }
+          $exe = Join-Path $installDir 'codex-unified-monitor.exe'
+          if (!(Test-Path $exe)) { throw 'Installed executable missing' }
+          # The runner has no Codex login. Only synthetic, empty local state is used.
+          $env:CODEX_HOME = Join-Path $env:RUNNER_TEMP 'empty-codex-home'
+          New-Item -ItemType Directory -Force $env:CODEX_HOME | Out-Null
+          $app = Start-Process $exe -ArgumentList '--background' -WindowStyle Hidden -PassThru
+          try {
+          Start-Sleep -Seconds 20
+          $app.Refresh()
+          if ($app.HasExited) { throw "Application exited early: $($app.ExitCode)" }
+          $webviews = Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" | Where-Object { $_.ParentProcessId -eq $app.Id }
+          if (!$webviews) { throw 'Application WebView2 process missing' }
+          $db = Join-Path $env:LOCALAPPDATA 'Codex Unified Monitor/monitor.sqlite3'
+          if (!(Test-Path $db)) { throw 'Application database missing' }
+          # This proves installer/startup only; interactive GUI and account access remain manual checks.
+          } finally {
+            if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id -ErrorAction SilentlyContinue }
+          }
+          "PASS: NSIS install, application stayed alive, WebView2 and local database present" | Set-Content windows-smoke.txt
+          Get-FileHash $installer.FullName -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($installer.Name)" } | Set-Content SHA256SUMS-windows.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Codex-Unified-Monitor-windows-x64
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            SHA256SUMS-windows.txt
+            windows-smoke.txt

@@ -29,6 +29,8 @@ pub struct IngestResult {
 struct Checkpoint {
     id: i64,
     path: String,
+    device: i64,
+    inode: i64,
     mtime: String,
     size: u64,
     offset: u64,
@@ -75,17 +77,98 @@ fn fingerprint(path: &Path, start: u64, len: u64) -> Result<String> {
     f.read_exact(&mut bytes)?;
     Ok(digest(bytes))
 }
-fn identity(meta: &Metadata) -> (u64, u64) {
+fn identity(path: &Path, meta: &Metadata) -> Result<(i64, i64)> {
     #[cfg(unix)]
     {
+        let _ = path;
         use std::os::unix::fs::MetadataExt;
-        (meta.dev(), meta.ino())
+        // SQLite INTEGER is signed. Preserve the full identity bit pattern;
+        // positive existing Unix identifiers keep exactly their stored value.
+        Ok((meta.dev() as i64, meta.ino() as i64))
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
         let _ = meta;
-        (0, 0)
+        windows_identity(path)
     }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, meta);
+        Ok((0, 0))
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[test]
+    fn native_identity_survives_rename_and_distinguishes_copies() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("original 中文.jsonl");
+        std::fs::write(&path, "synthetic\r\n").unwrap();
+        let initial = identity(&path, &std::fs::metadata(&path).unwrap()).unwrap();
+        assert_ne!(initial.1, 0);
+        let moved = dir.path().join("renamed with spaces.jsonl");
+        std::fs::rename(&path, &moved).unwrap();
+        assert_eq!(
+            initial,
+            identity(&moved, &std::fs::metadata(&moved).unwrap()).unwrap()
+        );
+        std::fs::copy(&moved, &path).unwrap();
+        assert_ne!(
+            initial,
+            identity(&path, &std::fs::metadata(&path).unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn full_width_file_identifiers_round_trip_through_sqlite() {
+        let index = 0xf123_4567_89ab_cdef_u64;
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        let stored: i64 = connection
+            .query_row("SELECT ?", [index as i64], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored as u64, index);
+        assert_ne!(stored, 0);
+    }
+}
+
+#[cfg(windows)]
+fn windows_identity(path: &Path) -> Result<(i64, i64)> {
+    use std::{ffi::c_void, mem::MaybeUninit, os::windows::io::AsRawHandle};
+
+    // std's file_index/volume_serial_number metadata methods are still unstable.
+    // This is the documented BY_HANDLE_FILE_INFORMATION layout; no ownership
+    // is transferred to Win32 and File closes its handle on every return path.
+    #[repr(C)]
+    struct FileInformation {
+        attributes: u32,
+        creation_time: [u32; 2],
+        access_time: [u32; 2],
+        write_time: [u32; 2],
+        volume_serial: u32,
+        size_high: u32,
+        size_low: u32,
+        links: u32,
+        index_high: u32,
+        index_low: u32,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandle(handle: *mut c_void, info: *mut FileInformation) -> i32;
+    }
+    let file = File::open(path)?;
+    let mut information = MaybeUninit::<FileInformation>::uninit();
+    // SAFETY: file owns a valid open handle, and information points to writable
+    // storage of the exact Win32 structure size/alignment for this synchronous call.
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), information.as_mut_ptr()) } == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    // SAFETY: a successful call initialized the complete structure.
+    let information = unsafe { information.assume_init() };
+    let index = ((information.index_high as u64) << 32) | information.index_low as u64;
+    Ok((information.volume_serial as i64, index as i64))
 }
 pub fn discover(home: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
@@ -126,7 +209,7 @@ fn ingest_file(
     result: &mut IngestResult,
 ) -> Result<()> {
     let key = path.to_string_lossy().to_string();
-    let (device, inode) = identity(meta);
+    let (device, inode) = identity(path, meta)?;
     let mtime = meta
         .modified()?
         .duration_since(std::time::UNIX_EPOCH)
@@ -134,9 +217,11 @@ fn ingest_file(
         .as_nanos()
         .to_string();
     let size = meta.len();
-    let old=store.conn.query_row("SELECT id,path,mtime,size,offset,head_len,head_hash,tail_hash,parser_state,errors,oversized FROM files WHERE path=? OR (?!=0 AND device=? AND inode=?) ORDER BY path=? DESC LIMIT 1",params![key,inode,device,inode,key],|r|Ok(Checkpoint{id:r.get(0)?,path:r.get(1)?,mtime:r.get(2)?,size:r.get(3)?,offset:r.get(4)?,head_len:r.get(5)?,head_hash:r.get(6)?,tail_hash:r.get(7)?,state:r.get(8)?,errors:r.get(9)?,oversized:r.get(10)?})).optional()?;
+    let old=store.conn.query_row("SELECT id,path,mtime,size,offset,head_len,head_hash,tail_hash,parser_state,errors,oversized,device,inode FROM files WHERE path=? OR (?!=0 AND device=? AND inode=?) ORDER BY path=? DESC LIMIT 1",params![key,inode,device,inode,key],|r|Ok(Checkpoint{id:r.get(0)?,path:r.get(1)?,mtime:r.get(2)?,size:r.get(3)?,offset:r.get(4)?,head_len:r.get(5)?,head_hash:r.get(6)?,tail_hash:r.get(7)?,state:r.get(8)?,errors:r.get(9)?,oversized:r.get(10)?,device:r.get(11)?,inode:r.get(12)?})).optional()?;
     let mut old = old.unwrap_or_default();
-    if old.id != 0 && old.mtime == mtime && old.size == size {
+    let replaced =
+        old.id != 0 && old.inode != 0 && inode != 0 && (old.device, old.inode) != (device, inode);
+    if old.id != 0 && !replaced && old.mtime == mtime && old.size == size {
         if old.path != key {
             store
                 .conn
@@ -144,7 +229,7 @@ fn ingest_file(
         }
         return Ok(());
     }
-    let mut reset = old.id == 0 || size < old.offset;
+    let mut reset = old.id == 0 || replaced || size < old.offset;
     if old.id != 0 && !reset {
         reset = (size <= old.size && mtime != old.mtime)
             || fingerprint(path, 0, old.head_len).ok().as_deref() != Some(old.head_hash.as_str())

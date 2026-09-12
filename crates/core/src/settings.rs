@@ -8,6 +8,8 @@ pub struct Settings {
     pub language: String,
     pub timezone: String,
     pub quota_poll_seconds: u64,
+    pub adaptive_refresh: bool,
+    pub low_quota_threshold: u8,
     pub tray_metric: String,
     pub pricing_mode: String,
     pub monthly_subscription_cost: Option<f64>,
@@ -23,6 +25,8 @@ impl Default for Settings {
             language: "zh-CN".into(),
             timezone: iana_time_zone::get_timezone().unwrap_or("UTC".into()),
             quota_poll_seconds: 90,
+            adaptive_refresh: true,
+            low_quota_threshold: 10,
             tray_metric: "weekly".into(),
             pricing_mode: "public_api".into(),
             monthly_subscription_cost: None,
@@ -39,6 +43,10 @@ impl Settings {
         anyhow::ensure!(
             matches!(self.language.as_str(), "en" | "zh-CN"),
             "Choose English or Simplified Chinese"
+        );
+        anyhow::ensure!(
+            self.low_quota_threshold <= 50,
+            "Low quota threshold must be 0–50 percent"
         );
         self.timezone
             .parse::<chrono_tz::Tz>()

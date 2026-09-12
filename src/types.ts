@@ -62,6 +62,8 @@ export interface Settings {
   language: "en" | "zh-CN";
   timezone: string;
   quota_poll_seconds: number;
+  adaptive_refresh: boolean;
+  low_quota_threshold: number;
   tray_metric: string;
   pricing_mode: string;
   monthly_subscription_cost: number | null;

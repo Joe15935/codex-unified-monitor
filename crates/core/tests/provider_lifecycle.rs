@@ -1,30 +1,30 @@
-#[cfg(unix)]
 #[test]
 fn one_owned_child_serves_multiple_reads_reaps_on_drop_and_sanitizes_errors() {
     use codexmeter_core::account::Client;
-    use std::{fs, os::unix::fs::PermissionsExt, process::Command};
-    let d = tempfile::tempdir().unwrap();
-    let binary = d.path().join("fake-app-server");
-    let pid_file = d.path().join("pids");
-    let script = format!(
-        r#"#!/bin/sh
-printf '%s\n' "$$" >> '{}'
-while IFS= read -r line; do
-  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
-  [ -n "$id" ] || continue
-  case "$line" in
-    *account/rateLimits/read*) result='{{"rateLimits":{{"primary":{{"usedPercent":20,"windowDurationMins":10080,"resetsAt":1900000000}}}}}}' ;;
-    *account/usage/read*) printf '{{"id":%s,"error":{{"code":500,"message":"SYNTHETIC_SECRET_TOKEN"}}}}\n' "$id"; continue ;;
-    *account/read*) result='{{"account":{{"email":"a@example.invalid","planType":"pro"}}}}' ;;
-    *) result='{{}}' ;;
-  esac
-  printf '{{"id":%s,"result":%s}}\n' "$id" "$result"
-done
-"#,
-        pid_file.display()
+    use std::{fs, process::Command};
+    let d = tempfile::Builder::new()
+        .prefix("provider test 中文 ")
+        .tempdir()
+        .unwrap();
+    let binary = d
+        .path()
+        .join(format!("fake-app-server{}", std::env::consts::EXE_SUFFIX));
+    let pid_file = d.path().join("provider-pids");
+    let compilation = Command::new("rustc")
+        .arg("--edition=2021")
+        .arg(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/fake_app_server.rs"),
+        )
+        .arg("-o")
+        .arg(&binary)
+        .output()
+        .unwrap();
+    assert!(
+        compilation.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compilation.stderr)
     );
-    fs::write(&binary, script).unwrap();
-    fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
     let mut client = Client::start_binary(binary).unwrap();
     assert_eq!(
         client
@@ -58,17 +58,64 @@ done
         .is_err());
     let pids = fs::read_to_string(pid_file).unwrap();
     assert_eq!(pids.lines().count(), 1);
-    let pid = pids.trim();
-    assert!(Command::new("/bin/kill")
-        .args(["-0", pid])
-        .status()
-        .unwrap()
-        .success());
+    let pid = pids.trim().parse::<u32>().unwrap();
+    let probe = ProcessProbe::new(pid);
+    assert!(probe.alive());
     drop(client);
-    assert!(!Command::new("/bin/kill")
-        .args(["-0", pid])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .unwrap()
-        .success());
+    assert!(!probe.alive());
+}
+
+#[cfg(unix)]
+struct ProcessProbe(u32);
+#[cfg(unix)]
+impl ProcessProbe {
+    fn new(pid: u32) -> Self {
+        Self(pid)
+    }
+    fn alive(&self) -> bool {
+        use std::process::Command;
+        Command::new("/bin/kill")
+            .args(["-0", &self.0.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    }
+}
+
+#[cfg(windows)]
+struct ProcessProbe(*mut std::ffi::c_void);
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+    fn WaitForSingleObject(handle: *mut std::ffi::c_void, milliseconds: u32) -> u32;
+    fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+}
+#[cfg(windows)]
+impl ProcessProbe {
+    fn new(pid: u32) -> Self {
+        // SAFETY: query only SYNCHRONIZE access to our known fixture PID.
+        let handle = unsafe { OpenProcess(0x00100000, 0, pid) };
+        assert!(!handle.is_null());
+        Self(handle)
+    }
+    fn alive(&self) -> bool {
+        // SAFETY: this owned process handle remains valid until Drop.
+        let state = unsafe { WaitForSingleObject(self.0, 0) };
+        assert!(
+            state == 0 || state == 258,
+            "Unexpected process wait result: {state}"
+        );
+        state == 258
+    }
+}
+#[cfg(windows)]
+impl Drop for ProcessProbe {
+    fn drop(&mut self) {
+        // SAFETY: close exactly the handle returned by OpenProcess.
+        unsafe {
+            CloseHandle(self.0);
+        }
+    }
 }

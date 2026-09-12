@@ -11,8 +11,13 @@ pub mod settings;
 pub mod storage;
 
 pub fn data_dir() -> std::path::PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(std::env::temp_dir)
+    // Keep the SQLite cache out of roaming profiles on Windows. The macOS
+    // location is unchanged, preserving existing settings and quota history.
+    #[cfg(windows)]
+    let root = dirs::data_local_dir();
+    #[cfg(not(windows))]
+    let root = dirs::data_dir();
+    root.unwrap_or_else(std::env::temp_dir)
         .join("Codex Unified Monitor")
 }
 pub fn codex_home() -> std::path::PathBuf {

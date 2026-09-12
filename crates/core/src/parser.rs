@@ -49,6 +49,16 @@ fn normalized_model(v: &str) -> String {
         x => x.to_owned(),
     }
 }
+fn recorded_service_tier(v: &Value) -> Option<String> {
+    match v.as_str() {
+        // Keep the wire value for evidence; non-standard known tiers must still
+        // be rejected by controlled audits. Unknown/null never means Fast off.
+        Some(tier @ ("default" | "standard" | "fast" | "priority" | "flex" | "batch")) => {
+            Some(tier.to_owned())
+        }
+        _ => None,
+    }
+}
 pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Event>> {
     let v: Value = serde_json::from_slice(line)?;
     let typ = s(&v, "type");
@@ -98,9 +108,33 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
         }
         return Ok(None);
     }
+    if typ == "event_msg" && p["type"] == "thread_settings_applied" {
+        // New rollouts identify the snapshot's logical owner even when it is
+        // copied into another thread. Older snapshots have no owner field.
+        if !state.metadata_seen
+            || p.get("thread_id")
+                .is_some_and(|owner| owner.as_str() != Some(state.session_id.as_str()))
+        {
+            return Ok(None);
+        }
+        let time = parsed_time.ok_or_else(|| anyhow::anyhow!("invalid_event_timestamp"))?;
+        if state
+            .fork_boundary_ms
+            .is_some_and(|boundary| time.timestamp_millis() <= boundary)
+        {
+            return Ok(None);
+        }
+        if let Some(tier) = p["thread_settings"].get("service_tier") {
+            state.service_tier = recorded_service_tier(tier);
+        }
+        // Absence supplies no new evidence. A later turn_context still replaces
+        // this value, including clearing it when that turn has no recorded tier:
+        // persistent thread settings do not rule out per-turn overrides.
+        return Ok(None);
+    }
     if typ == "turn_context" {
         // A missing field in a new turn is unknown, never inherited Fast-off.
-        state.service_tier = p["service_tier"].as_str().map(str::to_owned);
+        state.service_tier = recorded_service_tier(&p["service_tier"]);
         if let Some(m) = p["model"].as_str() {
             state.model = normalized_model(m);
         }
@@ -244,10 +278,10 @@ pub fn parse(line: &[u8], state: &mut ParserState) -> anyhow::Result<Option<Even
         kind: kind.into(),
         tool,
         tokens,
-        service_tier: p["service_tier"]
-            .as_str()
-            .map(str::to_owned)
-            .or_else(|| state.service_tier.clone()),
+        service_tier: match p.get("service_tier") {
+            Some(tier) => recorded_service_tier(tier),
+            None => state.service_tier.clone(),
+        },
         is_subagent: state.is_subagent,
         source: if token_record {
             "token_usage_record"

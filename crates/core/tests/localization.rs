@@ -12,6 +12,8 @@ fn old_preferences_gain_a_language_without_losing_existing_values() {
     }))
     .unwrap();
     assert_eq!(settings.language, "zh-CN");
+    assert!(settings.adaptive_refresh);
+    assert_eq!(settings.low_quota_threshold, 10);
     let before = serde_json::to_value(&settings).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let store = Store::open(&directory.path().join("db")).unwrap();

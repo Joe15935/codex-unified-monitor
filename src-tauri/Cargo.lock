@@ -502,7 +502,7 @@ dependencies = [
 
 [[package]]
 name = "codex-unified-monitor"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "codexmeter-core"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",

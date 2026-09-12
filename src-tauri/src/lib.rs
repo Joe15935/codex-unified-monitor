@@ -1,3 +1,4 @@
+mod refresh_policy;
 mod tray;
 mod worker;
 use codexmeter_core::{
@@ -50,11 +51,11 @@ async fn dashboard(app: tauri::AppHandle, range: Option<Range>) -> Result<Value,
   let store=store.lock().map_err(|_|"Database lock unavailable")?;let settings=Settings::load(&store).map_err(|e|e.to_string())?;let c=catalog(&store);
   let mut r=analytics::report(&store,&c,&settings,range.unwrap_or_default(),codexmeter_core::now()).map_err(|e|e.to_string())?;
   let mut q=quota.lock().map_err(|_|"Quota lock unavailable")?.clone();
-  if q.meta.status=="LIVE"&&q.meta.updated_at.is_some_and(|t|codexmeter_core::now()-t>settings.quota_poll_seconds as i64*3){q.meta.status="STALE".into();q.meta.confidence="limited".into();}
+  if q.meta.status=="LIVE"&&q.meta.updated_at.is_some_and(|t|codexmeter_core::now()-t>refresh_policy::freshness_seconds(settings.quota_poll_seconds, settings.adaptive_refresh)){q.meta.status="STALE".into();q.meta.confidence="limited".into();}
   let state=local.lock().map_err(|_|"Local status unavailable")?;r.diagnostics.scan_status=state.0.clone();r.diagnostics.last_local_update=state.1;r.meta.updated_at=state.1;
   let history=account::history(&store,&q.account_key).map_err(|e|e.to_string())?;
   let five=analytics::burn(&history,"5h",&store,&c,&settings).map_err(|e|e.to_string())?;let week=analytics::burn(&history,"week",&store,&c,&settings).map_err(|e|e.to_string())?;
-  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":"0.2.1"}))
+  Ok(json!({"report":r,"quota":q,"settings":settings,"burn":{"five_hour":five,"weekly":week},"autostart":autostart,"version":env!("CARGO_PKG_VERSION")}))
  }).await.map_err(|e|e.to_string())?
 }
 #[tauri::command]
@@ -213,7 +214,16 @@ async fn export_report(
 fn open_exports() -> Result<(), String> {
     let path = codexmeter_core::data_dir().join("exports");
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-    std::process::Command::new("/usr/bin/open")
+    #[cfg(target_os = "macos")]
+    let executable = std::path::PathBuf::from("/usr/bin/open");
+    #[cfg(windows)]
+    let executable = std::env::var_os("SystemRoot")
+        .map(std::path::PathBuf::from)
+        .ok_or("Windows system directory is unavailable")?
+        .join("explorer.exe");
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let executable = std::path::PathBuf::from("xdg-open");
+    std::process::Command::new(executable)
         .arg(path)
         .spawn()
         .map_err(|e| e.to_string())?;
@@ -277,6 +287,10 @@ fn start_audit(app: tauri::AppHandle, controls: auditor::Controls) -> Result<(),
         codexmeter_core::now(),
     )
     .map_err(|e| e.to_string())?;
+    state
+        .tx
+        .send(Message::Settings)
+        .map_err(|e| e.to_string())?;
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
 }
 #[tauri::command]
@@ -287,6 +301,10 @@ fn stop_audit(app: tauri::AppHandle) -> Result<(), String> {
         .lock()
         .map_err(|_| "Database lock unavailable")?;
     auditor::stop(&store, codexmeter_core::now()).map_err(|e| e.to_string())?;
+    state
+        .tx
+        .send(Message::Settings)
+        .map_err(|e| e.to_string())?;
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
 }
 #[tauri::command]

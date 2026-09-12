@@ -37,6 +37,7 @@ import {
 } from "./data";
 import { TokenGlyph, Trend } from "./components/Charts";
 import TierAuditor from "./components/TierAuditor";
+import { quotaInsight } from "./quotaInsight";
 
 const periods = [
   ["today", "Today"],
@@ -85,13 +86,16 @@ function QuotaCard({
   quota,
   tz,
   now,
+  settings,
 }: {
   title: string;
   window: Window | null;
   quota: Quota;
   tz: string;
   now: number;
+  settings: Settings;
 }) {
+  const insight = quotaInsight(w, quota.meta, now, settings);
   const live = quota.meta.status === "LIVE";
   return (
     <section className={`kpi ${!live ? "muted-kpi" : ""}`}>
@@ -129,6 +133,36 @@ function QuotaCard({
             </span>
           </div>
           <small className="reset-date">{date(w.resets_at, tz)}</small>
+          {insight && (
+            <div className="quota-insight">
+              {insight.low && (
+                <strong className="quota-low" role="status">
+                  {t("Low quota · {remaining}% remaining", {
+                    remaining: insight.remaining.toFixed(0),
+                  })}
+                </strong>
+              )}
+              {insight.elapsed != null && (
+                <small
+                  title={t(
+                    "Even pace reference at the last reading; not an exhaustion forecast.",
+                  )}
+                >
+                  {t("{used}% used · {elapsed}% of cycle elapsed", {
+                    used: w.used_percent.toFixed(0),
+                    elapsed: insight.elapsed.toFixed(0),
+                  })}
+                  <span>
+                    {insight.pace === "ahead"
+                      ? t("Above even pace")
+                      : insight.pace === "below"
+                        ? t("Below even pace")
+                        : t("Near even pace")}
+                  </span>
+                </small>
+              )}
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -550,6 +584,39 @@ function Preferences({
               </option>
             ))}
           </select>
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={draft.adaptive_refresh}
+            onChange={(e) => set("adaptive_refresh", e.target.checked)}
+          />
+          {t("Slow down refresh when idle")}
+        </label>
+        <small>
+          {t(
+            "Up to 5 minutes while idle. Controlled audit observations keep the configured interval.",
+          )}
+        </small>
+        <label>
+          {t("Low quota hint")}
+          <select
+            value={draft.low_quota_threshold}
+            onChange={(e) => set("low_quota_threshold", Number(e.target.value))}
+          >
+            {[0, 5, 10, 20].map((n) => (
+              <option key={n} value={n}>
+                {n === 0
+                  ? t("Off")
+                  : t("At {percent}% remaining", { percent: n })}
+              </option>
+            ))}
+          </select>
+          <small>
+            {t(
+              "Shown in the overview for fresh readings only. No system notifications.",
+            )}
+          </small>
         </label>
         <label>
           {t("Appearance")}{" "}
@@ -1168,6 +1235,7 @@ export default function App() {
                     quota={q}
                     tz={s.timezone}
                     now={now}
+                    settings={s}
                   />
                   <QuotaCard
                     title={t("Weekly")}
@@ -1175,6 +1243,7 @@ export default function App() {
                     quota={q}
                     tz={s.timezone}
                     now={now}
+                    settings={s}
                   />
                   <section className="kpi">
                     <div className="card-top">

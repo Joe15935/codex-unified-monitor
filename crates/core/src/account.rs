@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     io::{BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc,
     time::{Duration, Instant},
@@ -194,34 +194,98 @@ pub fn normalize(v: &Value, at: i64) -> Result<Quota> {
     })
 }
 pub fn executable() -> Result<PathBuf> {
-    let mut list = vec![];
     if let Some(p) = std::env::var_os("CODEXMETER_CODEX_BINARY") {
-        list.push(PathBuf::from(p));
+        let path = PathBuf::from(p);
+        anyhow::ensure!(path.is_file(), "Configured Codex executable does not exist");
+        anyhow::ensure!(
+            !cfg!(windows) || is_windows_executable(&path),
+            "Select the native Codex .exe, not a shell or npm wrapper"
+        );
+        return Ok(path);
     }
-    for p in [
-        "/Applications/ChatGPT.app/Contents/Resources/codex",
-        "/Applications/Codex.app/Contents/Resources/codex",
-        "/opt/homebrew/bin/codex",
-        "/usr/local/bin/codex",
-    ] {
-        list.push(p.into());
-    }
-    if let Some(h) = dirs::home_dir() {
-        for p in [
-            "Applications/ChatGPT.app/Contents/Resources/codex",
-            "Applications/Codex.app/Contents/Resources/codex",
-            ".local/bin/codex",
-            ".cargo/bin/codex",
-        ] {
-            list.push(h.join(p));
+    let mut prefixes: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    if cfg!(windows) {
+        if let Some(path) = std::env::var_os("APPDATA") {
+            prefixes.push(PathBuf::from(path).join("npm"));
+        }
+        if let Some(path) = std::env::var_os("LOCALAPPDATA") {
+            prefixes.push(PathBuf::from(path).join("Microsoft/WinGet/Links"));
         }
     }
-    if let Some(path) = std::env::var_os("PATH") {
-        list.extend(std::env::split_paths(&path).map(|p| p.join("codex")));
-    }
-    list.into_iter()
+    executable_candidates(dirs::home_dir().as_deref(), &prefixes, cfg!(windows))
+        .into_iter()
         .find(|p| p.is_file())
         .ok_or_else(|| anyhow!("Install and sign in to official Codex or ChatGPT first"))
+}
+
+fn is_windows_executable(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+}
+
+fn executable_candidates(home: Option<&Path>, prefixes: &[PathBuf], windows: bool) -> Vec<PathBuf> {
+    let mut list = Vec::new();
+    if !windows {
+        for p in [
+            "/Applications/ChatGPT.app/Contents/Resources/codex",
+            "/Applications/Codex.app/Contents/Resources/codex",
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+        ] {
+            list.push(p.into());
+        }
+    }
+    if let Some(home) = home {
+        if !windows {
+            list.push(home.join("Applications/ChatGPT.app/Contents/Resources/codex"));
+            list.push(home.join("Applications/Codex.app/Contents/Resources/codex"));
+        }
+        let name = if windows { "codex.exe" } else { "codex" };
+        list.push(home.join(".local/bin").join(name));
+        list.push(home.join(".cargo/bin").join(name));
+    }
+    for prefix in prefixes {
+        list.push(prefix.join(if windows { "codex.exe" } else { "codex" }));
+        if windows {
+            // Resolve the native optional package used by the official npm entrypoint.
+            // Launching codex.cmd would introduce a shell/Node child whose native
+            // grandchild could survive disconnect or exit.
+            let package = prefix.join("node_modules/@openai/codex");
+            windows_package_candidates(&package, &mut list);
+            if let Ok(resolved) = package.canonicalize() {
+                if resolved != package {
+                    windows_package_candidates(&resolved, &mut list);
+                }
+            }
+        }
+    }
+    list
+}
+
+fn windows_package_candidates(package: &Path, list: &mut Vec<PathBuf>) {
+    let (platform, target) = if cfg!(target_arch = "aarch64") {
+        ("codex-win32-arm64", "aarch64-pc-windows-msvc")
+    } else {
+        ("codex-win32-x64", "x86_64-pc-windows-msvc")
+    };
+    let mut roots = vec![package.to_path_buf()];
+    if let Some(scope) = package.parent() {
+        roots.push(scope.join(platform));
+    }
+    roots.push(package.join("node_modules/@openai").join(platform));
+    for root in roots {
+        // Current official layout plus the earlier vendor/codex layout.
+        for folder in ["bin", "codex"] {
+            list.push(
+                root.join("vendor")
+                    .join(target)
+                    .join(folder)
+                    .join("codex.exe"),
+            );
+        }
+    }
 }
 pub struct Client {
     child: Child,
@@ -235,7 +299,13 @@ impl Client {
         Self::start_binary(executable()?)
     }
     pub fn start_binary(binary: PathBuf) -> Result<Self> {
-        let mut child = Command::new(&binary)
+        let mut command = Command::new(&binary);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000); // CREATE_NO_WINDOW, stdio stays piped.
+        }
+        let mut child = command
             .args(["-c", "analytics.enabled=false", "app-server", "--stdio"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -413,4 +483,51 @@ pub fn history(store: &Store, account: &str) -> Result<Vec<Quota>> {
         .query_map([account], |r| r.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     texts.iter().map(|s| Ok(serde_json::from_str(s)?)).collect()
+}
+
+#[cfg(test)]
+mod executable_tests {
+    use super::*;
+
+    #[test]
+    fn windows_discovery_finds_current_native_npm_package_in_a_spaced_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let prefix = temp.path().join("npm 中文 with spaces");
+        let candidates = executable_candidates(None, &[prefix.clone()], true);
+        let package = if cfg!(target_arch = "aarch64") {
+            "codex-win32-arm64"
+        } else {
+            "codex-win32-x64"
+        };
+        let target = if cfg!(target_arch = "aarch64") {
+            "aarch64-pc-windows-msvc"
+        } else {
+            "x86_64-pc-windows-msvc"
+        };
+        let binary = prefix
+            .join("node_modules/@openai")
+            .join(package)
+            .join("vendor")
+            .join(target)
+            .join("bin/codex.exe");
+        std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
+        std::fs::write(&binary, b"synthetic native executable").unwrap();
+        std::fs::write(prefix.join("codex.cmd"), b"must never be selected").unwrap();
+        assert_eq!(candidates.into_iter().find(|p| p.is_file()), Some(binary));
+    }
+
+    #[test]
+    fn windows_discovery_preserves_native_path_priority_and_never_selects_shell_wrappers() {
+        let temp = tempfile::tempdir().unwrap();
+        let prefix = temp.path();
+        std::fs::write(prefix.join("codex.cmd"), b"wrapper").unwrap();
+        std::fs::write(prefix.join("codex"), b"node wrapper").unwrap();
+        let candidates = executable_candidates(None, &[prefix.to_owned()], true);
+        assert!(!candidates.iter().any(|p| p.is_file()));
+        let exe = prefix.join("codex.exe");
+        std::fs::write(&exe, b"native fixture").unwrap();
+        assert_eq!(candidates.into_iter().find(|p| p.is_file()), Some(exe));
+        assert!(is_windows_executable(Path::new("CODEX.EXE")));
+        assert!(!is_windows_executable(Path::new("codex.cmd")));
+    }
 }
