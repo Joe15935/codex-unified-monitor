@@ -182,3 +182,23 @@ Search for the final synthetic session, rapid Week/Month/All changes (final sele
 The v0.3.0 app and its database were backed up before replacement. The v0.3.1 installed binary matches the packaged binary. Its native window displayed real data without a resize intervention; English/Chinese switching and the real Auditor page rendered. No controlled-run declarations or reference baseline were fabricated.
 
 Cross-platform CI, final reopen/quit checks and public download verification are recorded below when completed. Windows interactive account/GUI testing, long-duration background painting, multiple monitors and reboot/login remain outside this local Mac acceptance. The large local log tree currently uses the existing 60-second fallback reconciliation; that limitation remains visible in the interface.
+
+
+### Final native checks and CI follow-up
+
+- Installed v0.3.1: closing the main window kept the monitor alive; opening the menu-bar compact panel and its Open Dashboard button restored the real Chinese Auditor page with a fresh LIVE reading. This succeeded before the subsequent resize test. The minimum supported 850 × 650 window was visually checked, then restored to 1240 × 860. English/Chinese native switching and saving unchanged preferences PASS; English dark-mode save/render PASS in the isolated browser fixture.
+- Native application-menu Quit stopped the app and its one owned provider; both PIDs were absent on readback. Repeated Cua `launch_app` on a running process is an idempotent no-op, so it is not evidence for the macOS Dock/Finder Reopen event. That particular event remains code-reviewed/unit-policy covered rather than directly automated.
+- Online-backup comparison after installation: all 45,717 original event rows and 100 original quota rows retained exactly; current counts 45,930 and 107. SQLite quick_check returned ok. No source log was changed.
+- Initial Windows CI exposed a timestamp-dependent existing test fixture. Two immediate equal-size writes could share an mtime; the fixture now explicitly sets and verifies a changed mtime. Production ingestion was unchanged. An in-place rewrite preserving identity, size and mtime remains an existing metadata-fast-path limitation.
+
+- Final cold relaunch also displayed the v0.3.1 Chinese overview with LIVE quota, without any resize. Launch-at-login remained off; the existing adaptive refresh and System appearance preferences were retained.
+
+### Public v0.3.1 verification
+
+[GitHub Actions 34680378560](https://github.com/Joe15935/codex-unified-monitor/actions/runs/34680378560) finished SUCCESS for Linux source checks, macOS packaging and Windows packaging at source commit `33a20626a4a52c50386f1eedc969f4169aa74304`. The later report-only commit does not change application code. Windows NSIS silent installation succeeded; the installed process remained alive for 20 seconds, with its WebView2 child and local database present. This is installer/startup evidence, not interactive Windows acceptance.
+
+The public packages are the tested local Apple Silicon bundle/DMG and the Windows artifact from that CI run. Windows artifact checksum matched its CI manifest. The installed Mac executable SHA256 is `0152ab12cb22b1f346e7fe1c7ab273a6433c674f591d051e73eebd950026f661` and matches the packaged executable. Package/privacy inspection found no private logs, database, credentials, UI screenshots or synthetic validation adapter. External dependency changes: zero; database schema changes: zero.
+
+Primary changed files: `src/App.tsx`, `src/components/TierAuditor.tsx`, `src/useRefresh.ts`, `src/refreshQueue.ts`, `src/data.ts`, `src/formatters.ts`, `crates/core/src/{analytics,storage}.rs`, and `src-tauri/src/{lib,native_ui,tray,worker,refresh_policy}.rs`, with corresponding tests, version metadata and bilingual documentation. This list identifies implementation areas; private evidence remains outside version control.
+
+Unauthenticated public download verification for [v0.3.1](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.1): release page and all four assets returned HTTP 200; downloaded contents matched local SHA256 digests. DMG: 2,892,126 bytes; app ZIP: 2,778,064 bytes; Windows installer: 2,176,343 bytes; checksum manifest: 322 bytes. The release remains a prerelease because Windows interactive acceptance and longitudinal Auditor calibration are incomplete.
