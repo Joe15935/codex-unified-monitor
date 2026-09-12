@@ -4,9 +4,9 @@
 
 A local macOS menu bar and Windows system-tray app for Codex quota, token accounting, cache health, and estimated API equivalent value. One Tauri 2 application, one SQLite index, and one persistent official Codex app-server child. No Electron, Python, web server, telemetry, or cloud sync in the shipped app.
 
-**[Download v0.3.1 · macOS + Windows beta](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.1)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
+**[Download latest · v0.3.1 · macOS + Windows beta](https://github.com/Joe15935/codex-unified-monitor/releases/latest)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
 
-**Preview boundaries:** Windows support is beta; build/test results and interactive Windows acceptance are reported separately in [TEST_REPORT.md](TEST_REPORT.md). Tier Auditor still needs independent, controlled field observations to validate its classification method. The [previous stable release](https://github.com/Joe15935/codex-unified-monitor/releases/latest) remains available.
+**Support status:** v0.3.1 is the default download release. Windows support is beta; build/test results and interactive Windows acceptance are reported separately in [TEST_REPORT.md](TEST_REPORT.md). Tier Auditor remains a preview and still needs independent, controlled field observations to validate its classification method. The [historical macOS-only v0.1.0 release](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.1.0) remains available.
 
 ## Install
 

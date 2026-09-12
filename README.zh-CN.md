@@ -4,9 +4,9 @@
 
 一个在本机运行的 macOS 菜单栏与 Windows 托盘应用，集中查看 Codex 官方额度、Token、缓存表现、API 等价值，以及套餐容量的长期观察结果。应用采用 Tauri 2 和 SQLite，随应用运行一个官方 Codex app-server 子进程；安装版不启动网页服务器，不收集遥测，也不把数据同步到云端。
 
-**[下载 v0.3.1 · macOS 与 Windows 测试版](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.1)** · [套餐额度审计](AUDITOR.zh-CN.md) · [验证记录](TEST_REPORT.md) · [隐私说明（英文）](PRIVACY.md)
+**[下载最新版 · v0.3.1 · macOS 与 Windows 测试版](https://github.com/Joe15935/codex-unified-monitor/releases/latest)** · [套餐额度审计](AUDITOR.zh-CN.md) · [验证记录](TEST_REPORT.md) · [隐私说明（英文）](PRIVACY.md)
 
-Windows 支持目前为测试版。构建、自动测试与 Windows 上的界面和真实账户验收分别记录在 [验证记录](TEST_REPORT.md)，不会将构建成功当成全部功能已经实测。套餐审计仍为预览功能，需要独立受控数据验证分类方法。
+v0.3.1 是当前默认下载版本。Windows 支持目前为测试版。构建、自动测试与 Windows 上的界面和真实账户验收分别记录在 [验证记录](TEST_REPORT.md)，不会将构建成功当成全部功能已经实测。套餐审计仍为预览功能，需要独立受控数据验证分类方法。[仅支持 macOS 的历史版本 v0.1.0](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.1.0) 仍可下载。
 
 ## 安装与切换语言
 
