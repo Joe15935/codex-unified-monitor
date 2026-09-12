@@ -126,8 +126,20 @@ fn truncate_and_same_size_rewrite_replace_source() {
     let mut s = Store::open(&d.path().join("db")).unwrap();
     let f = d.path().join("x.jsonl");
     fs::write(&f, meta() + &token(100, 40, 20, 100)).unwrap();
+    let original = fs::metadata(&f).unwrap();
     ingest(&mut s, &[f.clone()]).unwrap();
     fs::write(&f, meta() + &token(200, 40, 20, 200)).unwrap();
+    // Rapid writes can share an mtime on Windows. Make the changed-metadata
+    // precondition deterministic without depending on filesystem clock ticks.
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&f)
+        .unwrap()
+        .set_modified(original.modified().unwrap() + std::time::Duration::from_secs(60))
+        .unwrap();
+    let rewritten = fs::metadata(&f).unwrap();
+    assert_eq!(rewritten.len(), original.len());
+    assert_ne!(rewritten.modified().unwrap(), original.modified().unwrap());
     ingest(&mut s, &[f.clone()]).unwrap();
     assert_eq!(total(&s), 220);
     fs::write(&f, meta()).unwrap();
