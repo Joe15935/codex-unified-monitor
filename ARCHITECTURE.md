@@ -33,3 +33,9 @@ Windows NSIS configuration installs for the current user, offers English/Chinese
 ## Tier Auditor (v0.2.0)
 
 `auditor.rs` aligns successful official snapshots with indexed local events, stores controlled-run declarations and frozen prices, validates imported references and renders redacted reports. Schema v3 is additive over v2. The UI loads audit calculations only on the Tier Auditor page; no provider or background process is added. See AUDITOR.md.
+
+
+Shutdown uses two phases: an initial exit request keeps the UI event loop alive,
+asks the worker to stop, and waits on a separate coordinator. Only after the
+worker drops/reaps its owned provider does the app request final exit. This
+avoids deadlock between synchronous tray updates and main-thread thread joins.

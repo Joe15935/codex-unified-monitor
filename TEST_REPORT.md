@@ -1,4 +1,6 @@
-# Validation report — v0.1.0
+# Validation history — Codex Unified Monitor
+
+Latest acceptance: [v0.3.0 cross-platform and reliability](#v030-cross-platform-and-reliability-acceptance). Earlier sections are historical results.
 
 Executed on an Apple Silicon Mac on 2026-09-10. Real session files and private UI/account evidence remain outside the repository. This report publishes acceptance summaries, not account identity, project paths, prompts or detailed usage exports.
 
@@ -115,3 +117,29 @@ Final DMG SHA256: `16867ac42acf7db88a074b3270fe19d2fc9ffdb7812f87c4bdab8ed81094e
 Ad-hoc signature and DMG filesystem integrity PASS. Apple notarization, Intel binaries and longitudinal field validation of tier classification remain outside this release. Unknown external errors keep their original text; canonical JSON/CSV fields remain English for compatibility.
 
 Public [v0.2.1 release](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.2.1) verification: unauthenticated ZIP and DMG downloads both returned HTTP 200 and matched the final SHA256 values above. The repository and release are public; the release is marked preview because tier classification still requires longitudinal field validation.
+
+
+## v0.3.0 cross-platform and reliability acceptance
+
+Executed on 2026-09-12. Final application code: `7555b257f9a27e5fefcaa6401c1420678e1fcf70`.
+No new production dependencies, schema migration, model-price changes or historic speed inference were added.
+
+- `npm test`: 10 Node tests and 67 Rust core tests PASS. Coverage includes native Windows executable discovery, full-width file identity, CRLF/Chinese/spaced paths, same-size/same-time file replacement, portable owned-provider lifecycle, conservative thread settings, bilingual labels, and stale/expired quota hints.
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib --tests`: 16 tests PASS on macOS (6 unit, 9 scheduling/recovery, 1 native filesystem watcher). Two recovery fixtures use Unix permissions/symlinks; Windows runs 14 desktop tests. Shutdown tests reproduce a worker waiting for the UI thread and prove cleanup precedes exit without blocking the UI.
+- Both Cargo format checks, `git diff --check`, TypeScript/production `npm run build`, and `npm audit --audit-level=high` PASS; npm reported zero vulnerabilities at this check.
+- `npm run package -- --target aarch64-apple-darwin --bundles app,dmg`: PASS after the shutdown fix. Ad-hoc `codesign --verify --deep --strict`, DMG `hdiutil verify`, and bundle scans for private logs/databases/authentication files/build-user home paths PASS. These are not Apple notarization checks.
+- Browser rendering of the actual React components with an isolated synthetic IPC adapter: Chinese/English overview and settings PASS; 92% used / 57% elapsed displays the even-pace reference and the configurable low-quota hint. Turning the hint off removes it while preserving the pace reference. Adaptive refresh can be disabled and saved; language remains selected across settings save. Default 1280px and minimum 850px layouts plus dark settings were visually checked; the 850px document had no horizontal overflow. Once the synthetic reading aged beyond the configured freshness limit, the pace hint disappeared without a page reload. The adapter and synthetic data are ignored local validation files, not shipped application code or real account evidence.
+- Existing v0.2.1 application and SQLite database backed up before attempting upgrade; backup integrity PASS. During cooperative exit the old process hung. A read-only stack sample showed the UI thread blocked in `pthread_join`; locked Tauri source confirms tray setters wait for the UI thread. v0.3.0 now keeps the event loop running while a background coordinator waits for worker/provider cleanup.
+- **Installed Mac v0.3.0 runtime acceptance is BLOCKED:** the old application still has not exited. Cua Driver refused force-termination with `foreign_process_termination_denied`, including after explicit user authorization, because that process was not created by the current Cua runtime. No alternate termination route was used. Built artifact validation above is separate from installing/relaunching this Mac's current application.
+
+[Final GitHub Actions run 34677502042](https://github.com/Joe15935/codex-unified-monitor/actions/runs/34677502042) is SUCCESS for code commit `7555b257f9a27e5fefcaa6401c1420678e1fcf70`: Ubuntu checks, macOS ARM build and Windows x64 checks/build all passed. Windows ran 10 Node + 67 core + 14 desktop tests. The actual NSIS installer silently installed into a directory with spaces; the installed binary stayed alive for 20 seconds, owned a WebView2 process and created its database in LocalAppData. The test used an empty Codex home with no account login. Its process was then cleaned up by the runner. This is installation/background-startup evidence, not interactive GUI or account evidence.
+
+The downloaded Windows CI artifact checksum matches the runner-generated checksum. The Mac ZIP executable matches the final explicit `aarch64-apple-darwin` build (the old default `target/release` directory is not a release source).
+
+| Artifact | Bytes | SHA256 |
+| --- | ---: | --- |
+| macOS ARM app ZIP | 2,770,099 | `30ce745b5f7ea4e69941d847df66a524ceb2f3419ab4e510a4e4310cd5b36446` |
+| macOS ARM DMG | 2,881,096 | `feca3feac33ba1d01b204f5f39e045e96acf575fe00f54e0ad096041d265dba6` |
+| Windows x64 NSIS installer | 2,171,581 | `6f5d34f97148b14f018439ab96ae7a0000e992c9de5fe190a02e9466bcef9b52` |
+
+ Real Windows account access, interactive tray/multiple-monitor behavior, reboot/login execution, SmartScreen reputation/code signing and Windows ARM are not claimed. Auditor classification still requires independent baseline and controlled longitudinal samples; no real baseline or declarations were fabricated.
