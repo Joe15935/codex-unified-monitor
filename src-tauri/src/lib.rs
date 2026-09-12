@@ -1,4 +1,5 @@
 mod refresh_policy;
+mod shutdown;
 mod tray;
 mod worker;
 use codexmeter_core::{
@@ -29,6 +30,7 @@ pub struct AppState {
     pub local: Arc<Mutex<(String, Option<i64>)>>,
     pub tx: mpsc::Sender<Message>,
     pub worker_join: Mutex<Option<std::thread::JoinHandle<()>>>,
+    pub shutdown: Arc<shutdown::Shutdown>,
 }
 fn catalog(store: &Store) -> Catalog {
     store
@@ -382,7 +384,6 @@ async fn export_audit(app: tauri::AppHandle) -> Result<Vec<String>, String> {
 }
 #[tauri::command]
 fn quit(app: tauri::AppHandle) {
-    let _ = app.state::<AppState>().tx.send(Message::Quit);
     app.exit(0);
 }
 pub fn run() {
@@ -411,6 +412,7 @@ pub fn run() {
                 local: Arc::new(Mutex::new(("scanning".into(), None))),
                 tx,
                 worker_join: Mutex::new(None),
+                shutdown: Arc::new(shutdown::Shutdown::default()),
             });
             tray::install(app.handle())?;
             for label in ["main", "compact"] {
@@ -463,14 +465,27 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Unable to start Codex Unified Monitor");
     app.run(|app, event| {
-        if let tauri::RunEvent::Exit = event {
+        if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
             let state = app.state::<AppState>();
-            let _ = state.tx.send(Message::Quit);
-            if let Ok(mut guard) = state.worker_join.lock() {
-                if let Some(join) = guard.take() {
-                    let _ = join.join();
+            if !state.shutdown.is_finished() {
+                // The worker may be waiting for a synchronous tray operation on
+                // this thread. Keep servicing UI events until cleanup completes.
+                api.prevent_exit();
+                if state.shutdown.begin() {
+                    let _ = state.tx.send(Message::Quit);
+                    let worker = state
+                        .worker_join
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .take();
+                    let shutdown = state.shutdown.clone();
+                    let app = app.clone();
+                    let _ = shutdown::after_worker(worker, move || {
+                        shutdown.finish();
+                        app.exit(code.unwrap_or(0));
+                    });
                 }
-            };
+            }
         }
     });
 }

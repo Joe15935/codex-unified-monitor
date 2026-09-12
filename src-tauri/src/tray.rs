@@ -100,7 +100,6 @@ pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
                     .send(crate::Message::Refresh);
             }
             "quit" => {
-                let _ = app.state::<crate::AppState>().tx.send(crate::Message::Quit);
                 app.exit(0);
             }
             _ => {}
