@@ -1,7 +1,7 @@
 import { t } from "../i18n";
-import { useCallback, useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { call, count, date, duration, exact, native, usd } from "../data";
+import { useEffect, useRef, useState } from "react";
+import { useRefresh } from "../useRefresh";
+import { call, count, date, duration, exact, usd } from "../data";
 import type { Data, Tokens } from "../types";
 
 interface Controls {
@@ -109,45 +109,51 @@ export default function TierAuditor({
     no_subagents_attested: false,
     exclusive_local_use_attested: false,
   });
-  const reload = useCallback(async () => {
-    try {
-      setView(await call<AuditView>("audit_report"));
+  const actionEpoch = useRef(0);
+  const account = data.quota.account_key ?? data.quota.account_label ?? "";
+  const currentAccount = useRef(account);
+  currentAccount.current = account;
+  const { refresh: reload, invalidate } = useRefresh<AuditView>({
+    key: account,
+    read: () => call<AuditView>("audit_report"),
+    commit: (next) => {
+      setView(next);
       setError("");
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
+    },
+    error: (e) => setError(String(e)),
+    interval: 1500,
+  });
   useEffect(() => {
-    void reload();
-    let timer: ReturnType<typeof setTimeout>;
-    const unsub = native
-      ? listen("monitor-updated", () => {
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            if (!document.hidden) void reload();
-          }, 800);
-        })
-      : null;
-    const tick = setInterval(() => {
-      if (!document.hidden) void reload();
-    }, 30000);
+    actionEpoch.current += 1;
+    setView(null);
+    setError("");
+    setBusy(false);
+    setPage(0);
+    setExports([]);
     return () => {
-      clearTimeout(timer);
-      clearInterval(tick);
-      void unsub?.then((f) => f());
+      actionEpoch.current += 1;
     };
-  }, [reload]);
-  const action = async (work: () => Promise<unknown>, message: string) => {
+  }, [account]);
+  const action = async (
+    work: (isCurrent: () => boolean) => Promise<unknown>,
+    message: string,
+  ) => {
+    const epoch = ++actionEpoch.current;
+    const isCurrent = () =>
+      epoch === actionEpoch.current && account === currentAccount.current;
     setBusy(true);
+    invalidate();
     setError("");
     try {
-      await work();
+      await work(isCurrent);
+      if (!isCurrent()) return;
+      invalidate();
       await reload();
-      onToast(message);
+      if (isCurrent()) onToast(message);
     } catch (e) {
-      setError(String(e));
+      if (isCurrent()) setError(String(e));
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   };
   if (!view)
@@ -774,10 +780,10 @@ export default function TierAuditor({
             className="primary"
             disabled={busy}
             onClick={() =>
-              void action(
-                async () => setExports(await call<string[]>("export_audit")),
-                "Redacted evidence report exported: JSON, HTML and CSV.",
-              )
+              void action(async (isCurrent) => {
+                const files = await call<string[]>("export_audit");
+                if (isCurrent()) setExports(files);
+              }, "Redacted evidence report exported: JSON, HTML and CSV.")
             }
           >
             {t("Export Evidence Report")}{" "}

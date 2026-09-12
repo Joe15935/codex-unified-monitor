@@ -53,10 +53,14 @@ pub fn show_dashboard(app: &tauri::AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        notify_visible(app, "main");
     }
     if let Some(w) = app.get_webview_window("compact") {
         let _ = w.hide();
     }
+}
+pub fn notify_visible(app: &tauri::AppHandle, label: &str) {
+    let _ = app.emit_to(label, "monitor-visible", ());
 }
 pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Dashboard", true, None::<&str>)?;
@@ -186,7 +190,7 @@ pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
                     let _ = w.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                     let _ = w.show();
                     let _ = w.set_focus();
-                    let _ = app.emit_to("compact", "monitor-updated", ());
+                    notify_visible(app, "compact");
                 }
             }
         })

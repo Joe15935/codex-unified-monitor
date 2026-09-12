@@ -6,7 +6,7 @@ import {
   type Language,
 } from "./i18n";
 import LanguageSwitch from "./components/LanguageSwitch";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Data,
@@ -38,6 +38,7 @@ import {
 import { TokenGlyph, Trend } from "./components/Charts";
 import TierAuditor from "./components/TierAuditor";
 import { quotaInsight } from "./quotaInsight";
+import { useRefresh } from "./useRefresh";
 
 const periods = [
   ["today", "Today"],
@@ -73,10 +74,17 @@ function Stat({
 function useClock() {
   const [now, setNow] = useState(Date.now() / 1000);
   useEffect(() => {
-    const timer = setInterval(() => {
+    const tick = () => {
       if (!document.hidden) setNow(Date.now() / 1000);
-    }, 1000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
   return now;
 }
@@ -85,16 +93,15 @@ function QuotaCard({
   window: w,
   quota,
   tz,
-  now,
   settings,
 }: {
   title: string;
   window: Window | null;
   quota: Quota;
   tz: string;
-  now: number;
   settings: Settings;
 }) {
+  const now = useClock();
   const insight = quotaInsight(w, quota.meta, now, settings);
   const live = quota.meta.status === "LIVE";
   return (
@@ -305,13 +312,17 @@ function SessionTable({
           : sort === "output"
             ? s.aggregate.tokens.output_tokens
             : money(s.aggregate, mode).known_value_usd;
-  const filtered = rows
-    .filter((s) =>
-      `${s.id} ${s.project} ${s.models.join(" ")}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-    )
-    .sort((a, b) => key(b) - key(a));
+  const filtered = useMemo(
+    () =>
+      rows
+        .filter((s) =>
+          `${s.id} ${s.project} ${s.models.join(" ")}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+        )
+        .sort((a, b) => key(b) - key(a)),
+    [rows, search, sort, mode],
+  );
   const current = Math.min(
     page,
     Math.max(0, Math.ceil(filtered.length / limit) - 1),
@@ -879,15 +890,14 @@ function Preferences({
 }
 function Compact({
   data,
-  now,
   reload,
   onToast,
 }: {
   data: Data;
-  now: number;
   reload: () => void;
   onToast: (s: string) => void;
 }) {
+  const now = useClock();
   const q = data.quota;
   const a = data.report.periods.today;
   const mode = data.settings.pricing_mode;
@@ -960,6 +970,41 @@ function Compact({
     </div>
   );
 }
+function QuotaStatus({
+  quota,
+  scanStatus,
+}: {
+  quota: Quota;
+  scanStatus: string;
+}) {
+  const now = useClock();
+  return (
+    <div className="status-line">
+      <span
+        className={`status-dot ${quota.meta.status === "LIVE" ? "live" : ""}`}
+      />
+      <span>
+        {t(
+          quota.meta.status === "LIVE"
+            ? "Live quota"
+            : t("Quota {status}", { status: t(quota.meta.status) }),
+        )}
+        {t(
+          quota.meta.updated_at
+            ? " · " +
+                t("{time} ago", {
+                  time: duration(now - quota.meta.updated_at),
+                })
+            : "",
+        )}
+      </span>
+      <span className="divider">/</span>
+      <span>
+        {t("Local data ·")} {t(scanStatus)}
+      </span>
+    </div>
+  );
+}
 export default function App() {
   useLanguage();
   const compact = new URLSearchParams(location.search).get("compact") === "1";
@@ -979,26 +1024,28 @@ export default function App() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [format, setFormat] = useState("html");
   const [dataset, setDataset] = useState("daily");
-  const request = useRef(0);
-  const now = useClock();
-  const reload = useCallback(async () => {
-    const id = ++request.current;
-    try {
-      const d = await call<Data>("dashboard", { range });
-      if (id === request.current) {
-        if (native && d.settings.language) applyLanguage(d.settings.language);
-        setData(d);
-        setError("");
-      }
-    } catch (e) {
-      if (id === request.current) setError(String(e));
-    }
-  }, [range]);
+  const detailRequest = useRef(0);
+  const { refresh: reload, invalidate } = useRefresh<Data>({
+    key: JSON.stringify(range),
+    read: () => call<Data>("dashboard", { range }),
+    commit: (d) => {
+      if (native && d.settings.language) applyLanguage(d.settings.language);
+      setData(d);
+      setError("");
+    },
+    error: (e) => setError(String(e)),
+  });
+  useEffect(() => {
+    if (native) void call("window_ready").catch((e) => setError(String(e)));
+    return () => {
+      detailRequest.current += 1;
+    };
+  }, []);
   useEffect(() => {
     applyLanguage(getLanguage());
     if (!native) return;
     const unlisten = listen<Language>("language-changed", ({ payload }) => {
-      request.current += 1;
+      invalidate();
       applyLanguage(payload);
       setData((previous) =>
         previous
@@ -1008,33 +1055,20 @@ export default function App() {
             }
           : previous,
       );
-    });
+    }).catch(() => undefined);
     return () => {
-      void unlisten.then((dispose) => dispose());
+      void unlisten.then((dispose) => dispose?.());
     };
   }, []);
   useEffect(() => {
-    void reload();
     if (!native) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const unsub = listen("monitor-updated", () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!document.hidden) void reload();
-      }, 350);
-    });
-    const nav = listen<string>("navigate", (e) => setTab(e.payload));
-    const visible = () => {
-      if (!document.hidden) void reload();
-    };
-    document.addEventListener("visibilitychange", visible);
+    const nav = listen<string>("navigate", (e) => setTab(e.payload)).catch(
+      () => undefined,
+    );
     return () => {
-      clearTimeout(timer);
-      void unsub.then((f) => f());
-      void nav.then((f) => f());
-      document.removeEventListener("visibilitychange", visible);
+      void nav.then((dispose) => dispose?.());
     };
-  }, [reload]);
+  }, []);
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(""), 6500);
@@ -1044,16 +1078,24 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = data?.settings.theme || "system";
   }, [data?.settings.theme]);
-  const openSession = async (id: string) => {
+  const closeDetail = useCallback(() => {
+    detailRequest.current += 1;
+    setDetailOpen(false);
+  }, []);
+  const openSession = useCallback(async (id: string) => {
+    const request = ++detailRequest.current;
     setDetailOpen(true);
     setDetail(null);
     try {
-      setDetail(await call<Detail>("session_detail", { id }));
+      const next = await call<Detail>("session_detail", { id });
+      if (request === detailRequest.current) setDetail(next);
     } catch (e) {
-      setToast(String(e));
-      setDetailOpen(false);
+      if (request === detailRequest.current) {
+        setToast(String(e));
+        setDetailOpen(false);
+      }
     }
-  };
+  }, []);
   if (!data)
     return (
       <div className="loading">
@@ -1068,12 +1110,7 @@ export default function App() {
     );
   if (compact)
     return (
-      <Compact
-        data={data}
-        now={now}
-        reload={() => void reload()}
-        onToast={setToast}
-      />
+      <Compact data={data} reload={() => void reload()} onToast={setToast} />
     );
   const r = data.report,
     q = data.quota,
@@ -1098,6 +1135,7 @@ export default function App() {
   const save = async (next: Settings) => {
     try {
       await call("save_settings", { settings: next });
+      invalidate();
       await reload();
       setToast("Preferences saved.");
     } catch (e) {
@@ -1158,30 +1196,7 @@ export default function App() {
                 }[tab],
               )}
             </h1>
-            <div className="status-line">
-              <span
-                className={`status-dot ${q.meta.status === "LIVE" ? "live" : ""}`}
-              />
-              <span>
-                {t(
-                  q.meta.status === "LIVE"
-                    ? "Live quota"
-                    : t("Quota {status}", { status: t(q.meta.status) }),
-                )}
-                {t(
-                  q.meta.updated_at
-                    ? " · " +
-                        t("{time} ago", {
-                          time: duration(now - q.meta.updated_at),
-                        })
-                    : "",
-                )}
-              </span>
-              <span className="divider">/</span>
-              <span>
-                {t("Local data ·")} {t(r.diagnostics.scan_status)}
-              </span>
-            </div>
+            <QuotaStatus quota={q} scanStatus={r.diagnostics.scan_status} />
           </div>
           <div className="top-actions">
             <LanguageSwitch />
@@ -1234,7 +1249,6 @@ export default function App() {
                     window={q.five_hour}
                     quota={q}
                     tz={s.timezone}
-                    now={now}
                     settings={s}
                   />
                   <QuotaCard
@@ -1242,7 +1256,6 @@ export default function App() {
                     window={q.weekly}
                     quota={q}
                     tz={s.timezone}
-                    now={now}
                     settings={s}
                   />
                   <section className="kpi">
@@ -1941,7 +1954,7 @@ export default function App() {
       {detailOpen && (
         <DetailDialog
           detail={detail}
-          onClose={() => setDetailOpen(false)}
+          onClose={closeDetail}
           mode={mode}
           tz={s.timezone}
         />

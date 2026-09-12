@@ -165,6 +165,17 @@ fn fallback_discovers_roots_created_later_and_reconciles_only_appended_bytes() {
             .sum::<u64>(),
         170
     );
+    let mut pending = ingest::discover(&temp.0).into_iter().collect();
+    assert!(!ingest_pending(&mut store, &mut pending).index_changed);
+    fs::write(&file, "").unwrap();
+    let mut pending = ingest::discover(&temp.0).into_iter().collect();
+    let truncated = ingest_pending(&mut store, &mut pending);
+    assert_eq!(truncated.bytes_read, 0);
+    assert!(
+        truncated.index_changed,
+        "zero-byte truncation must refresh displayed totals"
+    );
+    assert!(store.events(0, i64::MAX).unwrap().is_empty());
     drop(store);
 }
 
@@ -196,6 +207,10 @@ fn unreadable_file_is_retried_without_blocking_other_sessions_or_duplicating_usa
     assert!(!partial.complete);
     assert!(partial.bytes_read > 0);
     assert_eq!(pending, [blocked.clone()].into_iter().collect());
+    assert!(
+        !retry_pending(&mut store, &mut pending).index_changed,
+        "an unchanged persistent read error should not trigger another data notification"
+    );
     assert_eq!(
         store
             .events(0, i64::MAX)

@@ -4,7 +4,7 @@
 
 一个在本机运行的 macOS 菜单栏与 Windows 托盘应用，集中查看 Codex 官方额度、Token、缓存表现、API 等价值，以及套餐容量的长期观察结果。应用采用 Tauri 2 和 SQLite，随应用运行一个官方 Codex app-server 子进程；安装版不启动网页服务器，不收集遥测，也不把数据同步到云端。
 
-**[下载 v0.3.0 · macOS 与 Windows 测试版](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.0)** · [套餐额度审计](AUDITOR.zh-CN.md) · [验证记录](TEST_REPORT.md) · [隐私说明（英文）](PRIVACY.md)
+**[下载 v0.3.1 · macOS 与 Windows 测试版](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.1)** · [套餐额度审计](AUDITOR.zh-CN.md) · [验证记录](TEST_REPORT.md) · [隐私说明（英文）](PRIVACY.md)
 
 Windows 支持目前为测试版。构建、自动测试与 Windows 上的界面和真实账户验收分别记录在 [验证记录](TEST_REPORT.md)，不会将构建成功当成全部功能已经实测。套餐审计仍为预览功能，需要独立受控数据验证分类方法。
 
@@ -40,6 +40,8 @@ macOS 安装包使用临时签名，**尚未通过 Apple 公证**；Windows 测�
 额度窗口按实际持续时间识别，`primary` 字段不一定代表 5 小时。接口没有返回的字段显示“不可用”，不会当成零。官方读取失败后，旧额度明确标为“缓存”或“过期”，本地 Token 仍可查看。
 
 默认额度读取间隔为 90 秒，自适应模式在持续空闲时最长放宽到 5 分钟；用户设置更长间隔时予以保留。关闭自适应即可固定间隔，读取失败后的退避仍然有效。切换语言、主题或价格不会额外触发账户请求。
+
+v0.3.1 减少使用中的重复工作：倒计时只更新所在组件，合并重叠刷新请求并顺序读取，会话详情使用索引查询，数字与日期格式按语言和时区复用有上限的缓存。保留原有布局、计数口径与 Tauri/SQLite 架构，没有新增生产依赖。具体依据及尚未完成的验收见 [调研记录](docs/RESEARCH-2026-09-12.md) 和 [验证记录](TEST_REPORT.md)；局部基准不能代表整个应用提速了多少倍。
 
 ## Pro Tier Auditor / 套餐额度审计
 

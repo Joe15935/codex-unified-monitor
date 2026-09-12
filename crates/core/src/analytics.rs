@@ -68,6 +68,20 @@ impl Aggregate {
             &self.public_api
         }
     }
+    fn accumulate(&mut self, event_value: &Self) {
+        self.tokens.add(&event_value.tokens);
+        self.responses += event_value.responses;
+        self.tool_calls += event_value.tool_calls;
+        for (target, value) in [
+            (&mut self.public_api, &event_value.public_api),
+            (&mut self.codex_work, &event_value.codex_work),
+        ] {
+            target.known_value_usd += value.known_value_usd;
+            target.priced_tokens += value.priced_tokens;
+            target.unpriced_tokens += value.unpriced_tokens;
+            target.cache_savings_usd += value.cache_savings_usd;
+        }
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Range {
@@ -220,16 +234,25 @@ pub fn report(
     let mut trend = BTreeMap::<i64, Point>::new();
     let mut tools = BTreeMap::<String, u64>::new();
     let hourly = matches!(range.period.as_str(), "today" | "5h");
-    store.visit_events(0, i64::MAX, |e| {
+    let scan_end = period_bounds
+        .iter()
+        .map(|(_, (_, end))| *end)
+        .fold(end, i64::max);
+    store.visit_events(0, scan_end, |e| {
+        // The eight summary periods include all time, so this pass must retain
+        // all events. Resolve both prices once per event, then add the exact same
+        // contribution to each bucket in the original event order.
+        let mut event_value = Aggregate::default();
+        event_value.add(&e, catalog, settings);
         for (key, (a, b)) in &period_bounds {
             if e.timestamp >= *a && e.timestamp < *b {
-                periods.get_mut(*key).unwrap().add(&e, catalog, settings);
+                periods.get_mut(*key).unwrap().accumulate(&event_value);
             }
         }
         if e.timestamp < start || e.timestamp >= end {
             return;
         }
-        total.add(&e, catalog, settings);
+        total.accumulate(&event_value);
         let dt = tz.timestamp_opt(e.timestamp, 0).single().unwrap();
         let bucket = if hourly {
             e.timestamp - dt.minute() as i64 * 60 - dt.second() as i64
@@ -250,7 +273,7 @@ pub fn report(
                 aggregate: Aggregate::default(),
             })
             .aggregate
-            .add(&e, catalog, settings);
+            .accumulate(&event_value);
         let session = sessions.entry(e.session_id.clone()).or_insert_with(|| {
             let p = projects.get(&e.session_id);
             SessionRow {
@@ -265,7 +288,7 @@ pub fn report(
             }
         });
         session.last_active = session.last_active.max(e.timestamp);
-        session.aggregate.add(&e, catalog, settings);
+        session.aggregate.accumulate(&event_value);
         if !e.turn_id.is_empty() {
             session.turns.insert(e.turn_id.clone());
         } else if e.kind == "turn" {
@@ -279,7 +302,7 @@ pub fn report(
             models
                 .entry(e.model.clone())
                 .or_default()
-                .add(&e, catalog, settings);
+                .accumulate(&event_value);
         }
         if e.kind == "tool" {
             *tools.entry(e.tool).or_default() += 1;
@@ -446,10 +469,7 @@ pub fn session_detail(store: &Store, id: &str, c: &Catalog, s: &Settings) -> Res
     let mut last = String::new();
     let mut tools = BTreeMap::<String, u64>::new();
     let mut aggregate = Aggregate::default();
-    store.visit_events(0, i64::MAX, |e| {
-        if e.session_id != id {
-            return;
-        }
+    store.visit_session_events(id, |e| {
         aggregate.add(&e, c, s);
         let hour = e.timestamp / 3600 * 3600;
         timeline

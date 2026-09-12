@@ -66,9 +66,28 @@ impl Store {
         self.visit_events(start, end, |e| events.push(e))?;
         Ok(events)
     }
-    pub fn visit_events(&self, start: i64, end: i64, mut visit: impl FnMut(Event)) -> Result<()> {
-        let mut stmt=self.conn.prepare("SELECT id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source,service_tier,is_subagent FROM events WHERE timestamp>=? AND timestamp<? ORDER BY timestamp,id")?;
-        let rows = stmt.query_map(params![start, end], |r| {
+    pub fn visit_events(&self, start: i64, end: i64, visit: impl FnMut(Event)) -> Result<()> {
+        self.visit_matching("timestamp>=? AND timestamp<?", params![start, end], visit)
+    }
+    /// Uses the existing session/time index while preserving the shared decoder
+    /// and the timestamp bounds/order of the previous full-history scan.
+    pub fn visit_session_events(&self, id: &str, visit: impl FnMut(Event)) -> Result<()> {
+        self.visit_matching(
+            "session_id=? AND timestamp>=? AND timestamp<?",
+            params![id, 0, i64::MAX],
+            visit,
+        )
+    }
+    fn visit_matching(
+        &self,
+        condition: &str,
+        parameters: impl rusqlite::Params,
+        mut visit: impl FnMut(Event),
+    ) -> Result<()> {
+        // Conditions are fixed internal SQL fragments; all user values are bound.
+        let sql = format!("SELECT id,response_id,session_id,timestamp,model,effort,turn_id,kind,tool,raw_input,cached_input,output,reasoning,cache_write,source,service_tier,is_subagent FROM events WHERE {condition} ORDER BY timestamp,id");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(parameters, |r| {
             let raw: u64 = r.get(9)?;
             let cached: u64 = r.get(10)?;
             let output: u64 = r.get(11)?;

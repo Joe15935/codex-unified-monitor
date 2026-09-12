@@ -1,6 +1,6 @@
 # Validation history — Codex Unified Monitor
 
-Latest acceptance: [v0.3.0 cross-platform and reliability](#v030-cross-platform-and-reliability-acceptance). Earlier sections are historical results.
+Latest acceptance: [v0.3.1 responsiveness](#v031-responsiveness-acceptance). Earlier sections are historical results.
 
 Executed on an Apple Silicon Mac on 2026-09-10. Real session files and private UI/account evidence remain outside the repository. This report publishes acceptance summaries, not account identity, project paths, prompts or detailed usage exports.
 
@@ -147,3 +147,38 @@ The downloaded Windows CI artifact checksum matches the runner-generated checksu
 Real Windows account access, interactive tray/multiple-monitor behavior, reboot/login execution, SmartScreen reputation/code signing and Windows ARM are not claimed. Auditor classification still requires independent baseline and controlled longitudinal samples; no real baseline or declarations were fabricated.
 
 Public [v0.3.0 release](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.0) verification: all four assets (Mac ZIP, Mac DMG, Windows installer and SHA256SUMS.txt) downloaded without authentication, returned HTTP 200 and matched the local release files byte-for-byte by SHA256. The release is public and marked prerelease. Its tag targets `ed9a4a3f31ddfab676068d3deec3114db3106153`, which adds acceptance documentation to the validated application code above. This final publication record changes documentation only.
+
+## v0.3.1 responsiveness acceptance
+
+Validation date: 2026-09-12. This is a bounded performance and lifecycle update to v0.3.0; accounting, price catalogs, schema and Auditor thresholds are unchanged. No production dependency was added.
+
+### Checks completed locally
+
+- `npm test`: 29 Node tests and 69 Rust core tests PASS. New cases cover bounded refresh under continuous events, single-flight reads, stale success/error suppression, immediate disposal/StrictMode remount, failures and manual refresh; format output parity/cache bounds; indexed-query and timestamp-boundary parity.
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib --tests`: 21 desktop tests PASS (11 unit, 9 refresh/recovery, 1 actual filesystem watcher). Native checks cover first-render readiness, background launch, successful tray deduplication and retry, unchanged ingestion, truncation and failed-file recovery.
+- `npm run package -- --target aarch64-apple-darwin --bundles app,dmg`: production TypeScript/Vite build and Apple Silicon app/DMG PASS. `codesign --verify --deep --strict` PASS; ad-hoc signature, not notarization.
+- Both Rust formatting checks and `git diff --check`: PASS.
+
+### Measured work, not an application-wide speed claim
+
+Five release-mode repetitions per query, median milliseconds, on the same private online SQLite backup (45,103 events / 143 sessions / 99 quota readings). The probe excludes IPC, painting and OS scheduling. Five frozen-time report payloads and two session details remained byte-identical to v0.3.0.
+
+| Work | v0.3.0 | v0.3.1 |
+| --- | ---: | ---: |
+| Today dashboard calculation | 57.75 ms | 52.36 ms |
+| Weekly dashboard calculation | 64.27 ms | 55.92 ms |
+| All-time dashboard calculation | 80.47 ms | 64.08 ms |
+| Detail, 4,366-event session | 43.30 ms | 5.13 ms |
+| Detail, one-event session | 44.44 ms | 0.012 ms |
+
+An independent Node formatting loop (40,000 outputs, five cold-cache trials) fell from median 538.1 ms to 19.6 ms; Intl constructor calls fell from 40,000 to 8. This isolates formatting only and does not imply a whole-app multiplier.
+
+The actual React interface was exercised in an isolated local browser with 1,500 synthetic sessions and 150 ms simulated dashboard reads. In development StrictMode, the old root/table rendered 42 additional times over 20.8 seconds without a data read; the candidate rendered twice over 19.6 seconds when its 30-second reconciliation read arrived. The one-second clock now updates only quota/status components. A 50-event, 5-second burst produced one post-burst refresh in the old trailing debounce, versus eight coalesced reads in the candidate; candidate concurrent dashboard reads stayed at one. These are instrumented fixture observations, not production FPS measurements.
+
+Search for the final synthetic session, rapid Week/Month/All changes (final selection All), and closing a delayed detail request (dialog remained closed) PASS. Chinese Auditor rendered with INCONCLUSIVE and explicit evidence boundaries. Synthetic fixtures and all private screenshots remain ignored and are not shipped.
+
+### Installation and remaining acceptance
+
+The v0.3.0 app and its database were backed up before replacement. The v0.3.1 installed binary matches the packaged binary. Its native window displayed real data without a resize intervention; English/Chinese switching and the real Auditor page rendered. No controlled-run declarations or reference baseline were fabricated.
+
+Cross-platform CI, final reopen/quit checks and public download verification are recorded below when completed. Windows interactive account/GUI testing, long-duration background painting, multiple monitors and reboot/login remain outside this local Mac acceptance. The large local log tree currently uses the existing 60-second fallback reconciliation; that limitation remains visible in the interface.

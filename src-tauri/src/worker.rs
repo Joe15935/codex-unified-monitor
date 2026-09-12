@@ -1,4 +1,5 @@
 use crate::{
+    native_ui::{self, ChangedText},
     refresh_policy::{self, RecoveryPolicy, RefreshPolicy},
     AppState, Message,
 };
@@ -92,6 +93,7 @@ pub fn run(app: tauri::AppHandle, rx: mpsc::Receiver<Message>) {
     let mut manual_requested = false;
     let mut previously_enabled = None;
     let mut initial_scan = true;
+    let mut tray_text = (ChangedText::default(), ChangedText::default());
     loop {
         let time = now();
         if watcher
@@ -133,14 +135,19 @@ pub fn run(app: tauri::AppHandle, rx: mpsc::Receiver<Message>) {
             next_watch_check = time + refresh_policy::WATCH_CHECK_SECONDS;
         }
         let mut ingested_at = (initial_scan && paths.is_empty()).then_some(time);
+        let mut index_changed = initial_scan;
         initial_scan = false;
         if !paths.is_empty() && time >= recovery.retry_ingest_at {
-            let result = state
-                .store
-                .lock()
-                .ok()
-                .map(|mut s| refresh_policy::ingest_pending(&mut s, &mut paths));
+            let recovering = !recovery.ingest_is_healthy();
+            let result = state.store.lock().ok().map(|mut s| {
+                if recovering {
+                    refresh_policy::retry_pending(&mut s, &mut paths)
+                } else {
+                    refresh_policy::ingest_pending(&mut s, &mut paths)
+                }
+            });
             if let Some(result) = result {
+                index_changed |= result.index_changed;
                 policy.observe_ingest(now(), result.bytes_read, result.inserted);
                 if result.complete {
                     recovery.ingest_succeeded();
@@ -154,15 +161,20 @@ pub fn run(app: tauri::AppHandle, rx: mpsc::Receiver<Message>) {
                 recovery.ingest_failed(now());
             }
         }
-        if let Ok(mut local) = state.local.lock() {
+        let notify_local = if let Ok(mut local) = state.local.lock() {
             let status = recovery.status();
-            if local.0 != status || ingested_at.is_some() {
-                local.0 = status.into();
-                if let Some(time) = ingested_at {
-                    local.1 = Some(time);
-                }
-                let _ = app.emit("monitor-updated", ());
+            let changed = native_ui::needs_local_notification(&local.0, status, index_changed);
+            local.0 = status.into();
+            if let Some(time) = ingested_at {
+                local.1 = Some(time);
             }
+            changed
+        } else {
+            false
+        };
+        if notify_local {
+            // Never hold the status mutex while dispatching to UI listeners.
+            let _ = app.emit("monitor-updated", ());
         }
         let (settings, audit_active) = state
             .store
@@ -258,7 +270,7 @@ pub fn run(app: tauri::AppHandle, rx: mpsc::Receiver<Message>) {
         } else if let Ok(mut q) = state.quota.lock() {
             q.next_attempt_at = Some(next_quota);
         }
-        update_tray(&app, &settings);
+        update_tray(&app, &settings, &mut tray_text);
         let retry_ingest = if paths.is_empty() {
             i64::MAX
         } else {
@@ -341,7 +353,7 @@ fn walk_rollouts(path: &std::path::Path) -> Vec<PathBuf> {
     }
     paths
 }
-fn update_tray(app: &tauri::AppHandle, settings: &Settings) {
+fn update_tray(app: &tauri::AppHandle, settings: &Settings, sent: &mut (ChangedText, ChangedText)) {
     let st = app.state::<AppState>();
     let Ok(q) = st.quota.lock() else { return };
     let live = q.meta.status == "LIVE"
@@ -423,7 +435,9 @@ fn update_tray(app: &tauri::AppHandle, settings: &Settings) {
         );
         // Windows ignores tray titles; its tooltip still includes the selected value.
         #[cfg(not(target_os = "windows"))]
-        let _ = tray.set_title(Some(label));
-        let _ = tray.set_tooltip(Some(tip));
+        let _ = sent.0.deliver(label, |title| tray.set_title(Some(title)));
+        let _ = sent
+            .1
+            .deliver(tip, |tooltip| tray.set_tooltip(Some(tooltip)));
     }
 }

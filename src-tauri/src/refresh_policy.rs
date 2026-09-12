@@ -8,6 +8,7 @@ use std::{
 pub struct IngestActivity {
     pub bytes_read: u64,
     pub inserted: u64,
+    pub index_changed: bool,
     pub complete: bool,
 }
 
@@ -24,15 +25,30 @@ pub fn ingest_pending(
         return IngestActivity {
             bytes_read: result.bytes_read,
             inserted: result.inserted,
+            index_changed: result.files_parsed > 0,
             complete: true,
         };
     }
+    // The first error may follow a committed prefix; its health transition also
+    // needs a UI update. Later retries use per-file results directly instead of
+    // SQLite total_changes, which includes rolled-back writes.
+    let mut activity = retry_pending(store, pending);
+    activity.index_changed = true;
+    activity
+}
+
+pub fn retry_pending(
+    store: &mut codexmeter_core::storage::Store,
+    pending: &mut BTreeSet<PathBuf>,
+) -> IngestActivity {
+    let batch: Vec<_> = pending.iter().cloned().collect();
     let mut activity = IngestActivity::default();
     for path in batch {
         if let Ok(result) = codexmeter_core::ingest::ingest(store, std::slice::from_ref(&path)) {
             pending.remove(&path);
             activity.bytes_read = activity.bytes_read.saturating_add(result.bytes_read);
             activity.inserted = activity.inserted.saturating_add(result.inserted);
+            activity.index_changed |= result.files_parsed > 0;
         }
     }
     activity.complete = pending.is_empty();

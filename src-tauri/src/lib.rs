@@ -1,3 +1,4 @@
+mod native_ui;
 mod refresh_policy;
 mod shutdown;
 mod tray;
@@ -31,6 +32,7 @@ pub struct AppState {
     pub tx: mpsc::Sender<Message>,
     pub worker_join: Mutex<Option<std::thread::JoinHandle<()>>>,
     pub shutdown: Arc<shutdown::Shutdown>,
+    pub windows: native_ui::WindowLifecycle,
 }
 fn catalog(store: &Store) -> Catalog {
     store
@@ -68,45 +70,48 @@ fn refresh(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
-fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    settings
-        .save(
-            &*state
-                .store
-                .lock()
-                .map_err(|_| "Database lock unavailable")?,
-        )
-        .map_err(|e| e.to_string())?;
-    state
-        .tx
-        .send(Message::Settings)
-        .map_err(|e| e.to_string())?;
-    tray::set_language(&app, &settings.language).map_err(|e| e.to_string())?;
-    app.emit("language-changed", &settings.language)
+async fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
+    let (store, tx) = {
+        let state = app.state::<AppState>();
+        (state.store.clone(), state.tx.clone())
+    };
+    let language = settings.language.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store
+            .lock()
+            .map_err(|_| "Database lock unavailable".to_owned())?;
+        settings.save(&store).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    tx.send(Message::Settings).map_err(|e| e.to_string())?;
+    tray::set_language(&app, &language).map_err(|e| e.to_string())?;
+    app.emit("language-changed", &language)
         .map_err(|e| e.to_string())?;
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
 }
 #[tauri::command]
-fn set_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
+async fn set_language(app: tauri::AppHandle, language: String) -> Result<(), String> {
     if !matches!(language.as_str(), "en" | "zh-CN") {
         return Err("Choose English or Simplified Chinese".into());
     }
-    let state = app.state::<AppState>();
-    {
-        let store = state
-            .store
+    let (store, tx) = {
+        let state = app.state::<AppState>();
+        (state.store.clone(), state.tx.clone())
+    };
+    let saved_language = language.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store
             .lock()
-            .map_err(|_| "Database lock unavailable")?;
+            .map_err(|_| "Database lock unavailable".to_owned())?;
         let mut settings = Settings::load(&store).map_err(|e| e.to_string())?;
-        settings.language = language.clone();
-        settings.save(&store).map_err(|e| e.to_string())?;
-    }
+        settings.language = saved_language;
+        settings.save(&store).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     tray::set_language(&app, &language).map_err(|e| e.to_string())?;
-    state
-        .tx
-        .send(Message::Settings)
-        .map_err(|e| e.to_string())?;
+    tx.send(Message::Settings).map_err(|e| e.to_string())?;
     app.emit("language-changed", &language)
         .map_err(|e| e.to_string())?;
     app.emit("monitor-updated", ()).map_err(|e| e.to_string())
@@ -126,6 +131,18 @@ fn open_dashboard(app: tauri::AppHandle, tab: Option<String>) {
     tray::show_dashboard(&app);
     if let Some(tab) = tab {
         let _ = app.emit_to("main", "navigate", tab);
+    }
+}
+#[tauri::command]
+fn window_ready(app: tauri::AppHandle, window: tauri::WebviewWindow) {
+    // The caller is injected by Tauri. Loading and error views can both signal
+    // readiness; account availability must never gate showing a useful window.
+    if app
+        .state::<AppState>()
+        .windows
+        .ready_should_show(window.label())
+    {
+        tray::show_dashboard(&app);
     }
 }
 #[tauri::command]
@@ -406,6 +423,7 @@ pub fn run() {
             let store = Store::open(&dir.join("monitor.sqlite3"))?;
             let cached = account::cached(&store)?;
             let (tx, rx) = mpsc::channel();
+            let background = std::env::args().any(|s| s == "--background");
             app.manage(AppState {
                 store: Arc::new(Mutex::new(store)),
                 quota: Arc::new(Mutex::new(cached)),
@@ -413,6 +431,7 @@ pub fn run() {
                 tx,
                 worker_join: Mutex::new(None),
                 shutdown: Arc::new(shutdown::Shutdown::default()),
+                windows: native_ui::WindowLifecycle::new(background),
             });
             tray::install(app.handle())?;
             for label in ["main", "compact"] {
@@ -427,17 +446,17 @@ pub fn run() {
                         tauri::WindowEvent::Focused(false) if compact => {
                             let _ = window.hide();
                         }
+                        tauri::WindowEvent::Focused(true) => {
+                            tray::notify_visible(window.app_handle(), window.label());
+                        }
                         _ => {}
                     });
                 }
             }
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            if std::env::args().any(|s| s == "--background") {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.hide();
-                }
-            }
+            // main starts hidden in configuration and is shown by window_ready
+            // after React commits. Login/background launches keep it hidden.
             let handle = app.handle().clone();
             let join = std::thread::spawn(move || worker::run(handle, rx));
             *app.state::<AppState>().worker_join.lock().unwrap() = Some(join);
@@ -450,6 +469,7 @@ pub fn run() {
             set_language,
             set_autostart,
             open_dashboard,
+            window_ready,
             session_detail,
             export_report,
             open_exports,
@@ -465,6 +485,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Unable to start Codex Unified Monitor");
     app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            tray::show_dashboard(app);
+        }
         if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
             let state = app.state::<AppState>();
             if !state.shutdown.is_finished() {

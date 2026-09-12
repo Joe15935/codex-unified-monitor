@@ -93,6 +93,7 @@ export interface Credit {
   title: string | null;
 }
 export interface Quota {
+  account_key?: string;
   meta: Meta;
   account_label: string | null;
   plan: string | null;

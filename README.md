@@ -4,7 +4,7 @@
 
 A local macOS menu bar and Windows system-tray app for Codex quota, token accounting, cache health, and estimated API equivalent value. One Tauri 2 application, one SQLite index, and one persistent official Codex app-server child. No Electron, Python, web server, telemetry, or cloud sync in the shipped app.
 
-**[Download v0.3.0 · macOS + Windows beta](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.0)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
+**[Download v0.3.1 · macOS + Windows beta](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.1)** · [Accounting](ACCOUNTING.md) · [Privacy](PRIVACY.md) · [Validation](TEST_REPORT.md)
 
 **Preview boundaries:** Windows support is beta; build/test results and interactive Windows acceptance are reported separately in [TEST_REPORT.md](TEST_REPORT.md). Tier Auditor still needs independent, controlled field observations to validate its classification method. The [previous stable release](https://github.com/Joe15935/codex-unified-monitor/releases/latest) remains available.
 
@@ -43,6 +43,8 @@ Dates and compact numbers follow the selected language; the configured time zone
 A `primary` quota field is not necessarily a five-hour window. Windows are classified by their actual duration. Missing values remain Unavailable. Account failures mark older readings Cached/Stale while local tokens remain accessible.
 
 With the default 90-second interval, adaptive polling increases to at most 5 minutes during inactivity. A longer user-configured interval is respected. Turn adaptive refresh off for a fixed cadence; provider backoff still applies after failures. Settings changes to language, theme or pricing do not force additional account requests.
+
+v0.3.1 reduces repeated work during use: countdown ticks update their own widgets, overlapping refresh triggers share sequential reads, session details use indexed lookups, and bounded caches reuse number/date formatters by language and time zone. The existing layout, accounting rules and Tauri/SQLite stack are preserved, with no new production dependencies. See the [research record](docs/RESEARCH-2026-09-12.md) and [validation results](TEST_REPORT.md) for evidence and remaining limits; isolated benchmarks do not establish a whole-app speed multiplier.
 
 ## Pro Tier Auditor / 套餐额度审计
 
