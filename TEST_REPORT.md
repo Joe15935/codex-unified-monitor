@@ -142,4 +142,6 @@ The downloaded Windows CI artifact checksum matches the runner-generated checksu
 | macOS ARM DMG | 2,881,096 | `feca3feac33ba1d01b204f5f39e045e96acf575fe00f54e0ad096041d265dba6` |
 | Windows x64 NSIS installer | 2,171,581 | `6f5d34f97148b14f018439ab96ae7a0000e992c9de5fe190a02e9466bcef9b52` |
 
- Real Windows account access, interactive tray/multiple-monitor behavior, reboot/login execution, SmartScreen reputation/code signing and Windows ARM are not claimed. Auditor classification still requires independent baseline and controlled longitudinal samples; no real baseline or declarations were fabricated.
+Real Windows account access, interactive tray/multiple-monitor behavior, reboot/login execution, SmartScreen reputation/code signing and Windows ARM are not claimed. Auditor classification still requires independent baseline and controlled longitudinal samples; no real baseline or declarations were fabricated.
+
+Public [v0.3.0 release](https://github.com/Joe15935/codex-unified-monitor/releases/tag/v0.3.0) verification: all four assets (Mac ZIP, Mac DMG, Windows installer and SHA256SUMS.txt) downloaded without authentication, returned HTTP 200 and matched the local release files byte-for-byte by SHA256. The release is public and marked prerelease. Its tag targets `ed9a4a3f31ddfab676068d3deec3114db3106153`, which adds acceptance documentation to the validated application code above. This final publication record changes documentation only.
